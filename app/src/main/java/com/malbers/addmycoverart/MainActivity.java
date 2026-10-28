@@ -31,6 +31,7 @@ import com.malbers.addmycoverart.core.Album;
 import com.malbers.addmycoverart.core.AlbumScanner;
 import com.malbers.addmycoverart.core.ArtLookup;
 import com.malbers.addmycoverart.core.LookupResult;
+import com.malbers.addmycoverart.core.RipCheck;
 import com.malbers.addmycoverart.core.ScanResult;
 import com.malbers.addmycoverart.core.UpdateCheck;
 import com.malbers.addmycoverart.core.UrlHttp;
@@ -42,6 +43,7 @@ import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -50,7 +52,7 @@ import java.util.Locale;
  * Five screens, each built fresh so nothing carries over: access, browse, results, fetching, report.
  */
 public class MainActivity extends Activity {
-    private enum Screen { ACCESS, BROWSE, SCANNING, RESULTS, FETCHING, REPORT }
+    private enum Screen { ACCESS, BROWSE, SCANNING, RESULTS, FETCHING, REPORT, RIPCHECK, RIPREPORT }
 
     private static final int REQ_LEGACY = 1;
     private static final String CHANNEL = "https://www.youtube.com/@malbers";
@@ -422,7 +424,8 @@ public class MainActivity extends Activity {
             box.setGravity(Gravity.CENTER);
             box.addView(Ui.text(this, total == 0 ? "No albums found in this folder." : "Every album here already has art. Nothing to do.", 17, Ui.TEXT, true));
             body.addView(box, lp);
-            frame(Screen.RESULTS, scanRoot.getPath(), body, Ui.button(this, "Choose another folder", true, v -> showBrowse(scanRoot)));
+            frameWithLeft(Screen.RESULTS, scanRoot.getPath(), body, total == 0 ? null : ripCheckButton(),
+                    Ui.button(this, "Choose another folder", true, v -> showBrowse(scanRoot)));
             return;
         }
         ItemAdapter adapter = new ItemAdapter(this);
@@ -430,9 +433,13 @@ public class MainActivity extends Activity {
                 a.embeddedArt ? "art in tracks · will copy" : a.trackCount + " tracks", a.embeddedArt ? Ui.GOOD : Ui.SUB, null, true, a));
         box.addView(list(adapter), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT));
         body.addView(box, lp);
-        frame(Screen.RESULTS, scanRoot.getPath(), body,
+        frameWithLeft(Screen.RESULTS, scanRoot.getPath(), body, ripCheckButton(),
                 Ui.button(this, "Choose another folder", v -> showBrowse(scanRoot)),
                 Ui.button(this, "Fetch Album Art (" + r.missing.size() + ")", true, v -> startFetch(r.missing)));
+    }
+
+    private Button ripCheckButton() {
+        return Ui.button(this, "Rip Error Check", v -> startRipCheck());
     }
 
     private static String parentName(Album a) {
@@ -586,6 +593,111 @@ public class MainActivity extends Activity {
         frame(Screen.REPORT, scanRoot.getPath(), body, Ui.button(this, "Done", true, v -> showBrowse(scanRoot)));
     }
 
+    // ---------- rip check (report only, a separate run started from the scan results) ----------
+
+    private volatile boolean ripCancelled;
+    private final List<RipCheck.Result> ripResults = new ArrayList<>();
+
+    private void startRipCheck() {
+        List<Album> all = new ArrayList<>(scan.missing);
+        all.addAll(scan.withArt);
+        all.sort(Comparator.comparing(a -> a.dir.getPath().toLowerCase(Locale.ROOT)));
+        ripResults.clear();
+        ripCancelled = false;
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        LinearLayout body = Ui.column(this);
+        TextView count = Ui.oneLine(this, "", 13, Ui.SUB, true);
+        body.addView(count);
+        ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        bar.setMax(all.size());
+        bar.setProgressTintList(ColorStateList.valueOf(Ui.ACCENT));
+        bar.setProgressBackgroundTintList(ColorStateList.valueOf(Ui.CARD_HI));
+        body.addView(bar, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 10)));
+        TextView now = Ui.oneLine(this, "", 18, Ui.TEXT, true);
+        now.setPadding(0, Ui.dp(this, 10), 0, Ui.dp(this, 10));
+        body.addView(now);
+        ItemAdapter found = new ItemAdapter(this);
+        LinearLayout box = card();
+        ListView l = list(found);
+        l.setTranscriptMode(AbsListView.TRANSCRIPT_MODE_ALWAYS_SCROLL);
+        box.addView(l, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT));
+        body.addView(box, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
+
+        Button stop = Ui.button(this, "Stop", null);
+        stop.setOnClickListener(v -> {
+            ripCancelled = true;
+            stop.setEnabled(false);
+            stop.setText("Stopping after this album…");
+        });
+        frame(Screen.RIPCHECK, "Checking rips in " + scanRoot.getName() + " · nothing is changed", body, stop);
+
+        new Thread(() -> {
+            RipCheck check = new RipCheck(new UrlHttp(BuildConfig.USER_AGENT));
+            for (int i = 0; i < all.size() && !ripCancelled; i++) {
+                Album a = all.get(i);
+                int n = i;
+                runOnUiThread(() -> {
+                    count.setText((n + 1) + " of " + all.size());
+                    now.setText(a.dir.getName());
+                });
+                RipCheck.Result r = check.check(a);
+                runOnUiThread(() -> {
+                    ripResults.add(r);
+                    bar.setProgress(ripResults.size());
+                    if (!r.problems.isEmpty()) found.add(issueItem(r));
+                });
+            }
+            runOnUiThread(() -> {
+                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                showRipReport(ripCancelled, all.size());
+            });
+        }, "rip-check").start();
+    }
+
+    private ItemAdapter.Item issueItem(RipCheck.Result r) {
+        String status = r.problems.size() == 1 ? "1 issue" : r.problems.size() + " issues";
+        return new ItemAdapter.Item(r.album.dir.getName(), String.join(" · ", r.problems), status, Ui.BAD, null, false, r.album);
+    }
+
+    private void showRipReport(boolean cancelled, int planned) {
+        List<ItemAdapter.Item> issues = new ArrayList<>();
+        List<ItemAdapter.Item> skipped = new ArrayList<>();
+        int checked = 0;
+        for (RipCheck.Result r : ripResults) {
+            if (r.skipped != null) {
+                skipped.add(new ItemAdapter.Item(r.album.dir.getName(), parentName(r.album), "Not checked: " + r.skipped, Ui.SUB, null, false, r.album));
+                continue;
+            }
+            checked++;
+            if (!r.problems.isEmpty()) issues.add(issueItem(r));
+        }
+
+        LinearLayout body = Ui.column(this);
+        LinearLayout chips = Ui.row(this);
+        chips.addView(chip("Checked " + checked, Ui.TEXT));
+        chips.addView(chip(issues.size() + " possible issues", issues.isEmpty() ? Ui.GOOD : Ui.BAD), Ui.wrap(Ui.dp(this, 8)));
+        chips.addView(chip("Not checked " + skipped.size(), Ui.SUB), Ui.wrap(Ui.dp(this, 8)));
+        body.addView(chips);
+
+        String note = (cancelled ? "Stopped after " + ripResults.size() + " of " + planned + " albums. " : "")
+                + (issues.isEmpty()
+                    ? "No missing or short tracks found in the albums checked."
+                    : "These albums have fewer tracks than the release, or tracks much shorter than they should be. Nothing was changed.")
+                + (skipped.isEmpty() ? "" : " Albums without a MusicBrainz ID can't be checked.");
+        TextView n = Ui.text(this, note, 15, Ui.TEXT, false);
+        n.setPadding(Ui.dp(this, 4), Ui.dp(this, 12), 0, Ui.dp(this, 8));
+        body.addView(n);
+
+        ItemAdapter adapter = new ItemAdapter(this);
+        adapter.addAll(issues);
+        adapter.addAll(skipped);
+        LinearLayout box = card();
+        box.addView(list(adapter), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT));
+        body.addView(box, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
+        frame(Screen.RIPREPORT, scanRoot.getPath(), body, Ui.button(this, "Back to scan results", true, v -> showResults(scan)));
+    }
+
     // ---------- back ----------
 
     @Override
@@ -599,7 +711,11 @@ public class MainActivity extends Activity {
             case REPORT:
                 showBrowse(scanRoot);
                 return;
+            case RIPREPORT:
+                showResults(scan);
+                return;
             case FETCHING:
+            case RIPCHECK:
                 return; // Stop is explicit; back must not abandon a run half-way.
             default:
                 break;

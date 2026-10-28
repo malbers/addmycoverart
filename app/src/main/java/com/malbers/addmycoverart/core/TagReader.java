@@ -21,6 +21,17 @@ public final class TagReader {
     private TagReader() {}
 
     public static Tags read(File f) {
+        Builder b = parse(f);
+        return b == null ? Tags.EMPTY : b.build();
+    }
+
+    /** Track and disc numbers, FLAC playing time and the release ID, for the rip check. Never throws. */
+    public static TrackInfo readTrack(File f) {
+        Builder b = parse(f);
+        return b == null ? TrackInfo.EMPTY : b.track();
+    }
+
+    private static Builder parse(File f) {
         try (DataInputStream in = new DataInputStream(new BufferedInputStream(new FileInputStream(f)))) {
             byte[] magic = new byte[4];
             in.readFully(magic);
@@ -29,7 +40,7 @@ public final class TagReader {
         } catch (IOException | RuntimeException ignored) {
             // fall through: unreadable or truncated
         }
-        return Tags.EMPTY;
+        return null;
     }
 
     /** The embedded front cover (else the first picture) as image bytes, or null. Never throws. */
@@ -154,7 +165,7 @@ public final class TagReader {
 
     // ---- FLAC ----
 
-    private static Tags flac(DataInputStream in) throws IOException {
+    private static Builder flac(DataInputStream in) throws IOException {
         Builder b = new Builder();
         int total = 0;
         while (true) {
@@ -164,7 +175,11 @@ public final class TagReader {
             int len = (in.readUnsignedByte() << 16) | (in.readUnsignedByte() << 8) | in.readUnsignedByte();
             total += len;
             if (total > MAX_METADATA) break;
-            if (type == 4) {
+            if (type == 0 && len >= 18) {
+                byte[] d = new byte[len];
+                in.readFully(d);
+                b.durationMs = streamInfoMs(d);
+            } else if (type == 4) {
                 byte[] data = new byte[len];
                 in.readFully(data);
                 vorbis(data, b);
@@ -175,7 +190,16 @@ public final class TagReader {
             }
             if (last) break;
         }
-        return b.build();
+        return b;
+    }
+
+    /** STREAMINFO: 20-bit sample rate at byte 10, 36-bit total sample count ending at byte 17. Null when unknown. */
+    static Long streamInfoMs(byte[] d) {
+        int rate = (d[10] & 0xff) << 12 | (d[11] & 0xff) << 4 | (d[12] & 0xff) >> 4;
+        long samples = (long) (d[13] & 0x0f) << 32 | (long) (d[14] & 0xff) << 24 | (d[15] & 0xff) << 16
+                | (d[16] & 0xff) << 8 | (d[17] & 0xff);
+        if (rate == 0 || samples == 0) return null;
+        return samples * 1000 / rate;
     }
 
     private static void vorbis(byte[] d, Builder b) {
@@ -202,12 +226,12 @@ public final class TagReader {
 
     // ---- ID3v2 ----
 
-    private static Tags id3(DataInputStream in, int major) throws IOException {
-        if (major != 3 && major != 4) return Tags.EMPTY;
+    private static Builder id3(DataInputStream in, int major) throws IOException {
+        if (major != 3 && major != 4) return null;
         in.readUnsignedByte(); // revision
         int flags = in.readUnsignedByte();
         int size = syncsafe(in.readInt());
-        if (size > MAX_METADATA) return Tags.EMPTY;
+        if (size > MAX_METADATA) return null;
         byte[] tag = new byte[size];
         in.readFully(tag);
         int p = 0;
@@ -226,6 +250,8 @@ public final class TagReader {
                 case "TALB": b.put("ALBUM", text(tag, p, len)); break;
                 case "TPE1": b.put("ARTIST", text(tag, p, len)); break;
                 case "TPE2": b.put("ALBUMARTIST", text(tag, p, len)); break;
+                case "TRCK": b.put("TRACKNUMBER", text(tag, p, len)); break;
+                case "TPOS": b.put("DISCNUMBER", text(tag, p, len)); break;
                 case "APIC": if (apicDataStart(tag, p, len) >= 0) b.picture = true; break;
                 case "TXXX": {
                     String[] kv = text(tag, p, len).split("\u0000", 2);
@@ -236,7 +262,7 @@ public final class TagReader {
             }
             p += len;
         }
-        return b.build();
+        return b;
     }
 
     /** Decodes an ID3 text frame body; the result keeps NULs that separate multiple strings. */
@@ -286,6 +312,8 @@ public final class TagReader {
     private static final class Builder {
         String album, artist, albumArtist, mbid;
         boolean picture;
+        Integer track, trackTotal, disc;
+        Long durationMs;
 
         void put(String key, String value) {
             if (value == null || value.trim().isEmpty()) return;
@@ -295,12 +323,35 @@ public final class TagReader {
                 case "ARTIST": if (artist == null) artist = v; break;
                 case "ALBUMARTIST": case "ALBUM ARTIST": case "ALBUM_ARTIST": if (albumArtist == null) albumArtist = v; break;
                 case "MUSICBRAINZ_ALBUMID": if (mbid == null) mbid = v; break;
+                // "3" or "3/14"
+                case "TRACKNUMBER":
+                    if (track == null) track = number(v, 0);
+                    if (trackTotal == null) trackTotal = number(v, 1);
+                    break;
+                case "TRACKTOTAL": case "TOTALTRACKS": if (trackTotal == null) trackTotal = number(v, 0); break;
+                case "DISCNUMBER": if (disc == null) disc = number(v, 0); break;
                 default: break;
+            }
+        }
+
+        /** Part {@code i} of "n" or "n/m", or null. */
+        private static Integer number(String v, int i) {
+            String[] parts = v.split("/");
+            if (i >= parts.length) return null;
+            try {
+                int n = Integer.parseInt(parts[i].trim());
+                return n > 0 ? n : null;
+            } catch (NumberFormatException e) {
+                return null;
             }
         }
 
         Tags build() {
             return new Tags(album, artist, albumArtist, mbid, picture);
+        }
+
+        TrackInfo track() {
+            return new TrackInfo(track, trackTotal, disc, durationMs, mbid);
         }
     }
 }
