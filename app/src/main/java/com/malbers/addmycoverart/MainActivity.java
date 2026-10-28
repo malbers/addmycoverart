@@ -656,8 +656,16 @@ public class MainActivity extends Activity {
     }
 
     private ItemAdapter.Item issueItem(RipCheck.Result r) {
-        String status = r.problems.size() == 1 ? "1 issue" : r.problems.size() + " issues";
-        return new ItemAdapter.Item(r.album.dir.getName(), String.join(" · ", r.problems), status, Ui.BAD, null, false, r.album);
+        String status = (r.problems.size() == 1 ? "1 issue" : r.problems.size() + " issues") + " · " + basisShort(r.basis);
+        String sub = (r.artist != null ? r.artist + " · " : "") + String.join(" · ", r.problems);
+        return new ItemAdapter.Item(r.album.dir.getName(), sub, status, Ui.BAD, null, false, r.album);
+    }
+
+    /** "by ID" is the exact edition; "by search" is the edition most releases share, so worth a second look. */
+    private static String basisShort(String basis) {
+        if (RipCheck.BY_ID.equals(basis)) return "by ID";
+        if (RipCheck.BY_SEARCH.equals(basis)) return "by search";
+        return "by tags";
     }
 
     private void showRipReport(boolean cancelled, int planned) {
@@ -666,7 +674,8 @@ public class MainActivity extends Activity {
         int checked = 0;
         for (RipCheck.Result r : ripResults) {
             if (r.skipped != null) {
-                skipped.add(new ItemAdapter.Item(r.album.dir.getName(), parentName(r.album), "Not checked: " + r.skipped, Ui.SUB, null, false, r.album));
+                skipped.add(new ItemAdapter.Item(r.album.dir.getName(), r.artist != null ? r.artist : parentName(r.album),
+                        "Not checked: " + r.skipped, Ui.SUB, null, false, r.album));
                 continue;
             }
             checked++;
@@ -695,7 +704,65 @@ public class MainActivity extends Activity {
         LinearLayout box = card();
         box.addView(list(adapter), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT));
         body.addView(box, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
-        frame(Screen.RIPREPORT, scanRoot.getPath(), body, Ui.button(this, "Back to scan results", true, v -> showResults(scan)));
+        Button save = Ui.button(this, "Save report", null);
+        save.setOnClickListener(v -> {
+            File f = saveRipReport(cancelled, planned);
+            save.setText(f != null ? "Saved: Download/" + f.getName() : "Couldn't save the report");
+            save.setEnabled(f == null);
+        });
+        frameWithLeft(Screen.RIPREPORT, scanRoot.getPath(), body, save,
+                Ui.button(this, "Back to scan results", true, v -> showResults(scan)));
+    }
+
+    /**
+     * Writes the readout as plain text to the shared Download folder (never into the music folders),
+     * so a long report can be read on a computer. Null when it can't be written.
+     */
+    private File saveRipReport(boolean cancelled, int planned) {
+        StringBuilder b = new StringBuilder();
+        String now = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(new Date());
+        b.append("AddMyCoverArt rip check, ").append(BuildConfig.VERSION_NAME).append('\n');
+        b.append(now).append(" · ").append(scanRoot.getPath()).append("\n");
+        if (cancelled) b.append("Stopped after ").append(ripResults.size()).append(" of ").append(planned).append(" albums.\n");
+        b.append("Report only: nothing was changed.\n\n");
+        List<RipCheck.Result> issues = new ArrayList<>();
+        List<RipCheck.Result> skipped = new ArrayList<>();
+        int checked = 0;
+        for (RipCheck.Result r : ripResults) {
+            if (r.skipped != null) skipped.add(r);
+            else {
+                checked++;
+                if (!r.problems.isEmpty()) issues.add(r);
+            }
+        }
+        b.append("Checked ").append(checked).append(" · possible issues ").append(issues.size())
+                .append(" · not checked ").append(skipped.size()).append("\n\n");
+        b.append("POSSIBLE ISSUES\n");
+        if (issues.isEmpty()) b.append("  none\n");
+        for (RipCheck.Result r : issues) {
+            b.append("\n").append(r.artist != null ? r.artist + " / " : "").append(r.album.dir.getName())
+                    .append("   (compared ").append(basisShort(r.basis)).append(")\n");
+            b.append("  ").append(r.album.dir.getPath()).append('\n');
+            for (String p : r.problems) b.append("  - ").append(p).append('\n');
+        }
+        b.append("\nNOT CHECKED\n");
+        if (skipped.isEmpty()) b.append("  none\n");
+        for (RipCheck.Result r : skipped) {
+            b.append("  ").append(r.artist != null ? r.artist + " / " : "").append(r.album.dir.getName())
+                    .append(": ").append(r.skipped).append('\n');
+        }
+        File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+        File f = new File(dir, "AddMyCoverArt-rip-report-" + new SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(new Date()) + ".txt");
+        try {
+            //noinspection ResultOfMethodCallIgnored
+            dir.mkdirs();
+            try (java.io.Writer w = new java.io.OutputStreamWriter(new java.io.FileOutputStream(f), java.nio.charset.StandardCharsets.UTF_8)) {
+                w.write(b.toString());
+            }
+            return f;
+        } catch (java.io.IOException e) {
+            return null;
+        }
     }
 
     // ---------- back ----------

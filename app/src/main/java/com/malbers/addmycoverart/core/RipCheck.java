@@ -20,17 +20,19 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * Compares one album folder with what it should contain: missing tracks, and tracks much shorter than
- * they should be. Report only; it reads headers and never touches a file.
+ * Compares one album folder with what it should contain: missing tracks, empty or much-too-short tracks,
+ * and track tags that disagree with the file names. Report only; it reads headers and never touches a file.
  *
  * <p>Three ways in, most exact first:
  * <ol>
  *   <li>A MusicBrainz release ID in the tags: exact track count and track lengths.</li>
- *   <li>A track total in the tags ("3/14", TRACKTOTAL), or gaps in the track numbers: no network.</li>
- *   <li>A MusicBrainz search on artist + title, used only when every matching edition agrees on the
- *       disc's track count. Never the edition closest to the folder: that would match the broken rip.</li>
+ *   <li>A track total in the tags ("3/14", TRACKTOTAL): no network.</li>
+ *   <li>A MusicBrainz search on artist + title, used only when a clear majority of matching CD editions
+ *       agree on the disc's track count. Never the edition closest to the folder: that would match the
+ *       broken rip. Lengths then come from one edition with that count.</li>
  * </ol>
- * Anything else is "not checked" rather than guessed at, for the same reason a wrong cover is worse than none.
+ * Gaps in the track numbers are reported when nothing else can say. Anything else is "not checked"
+ * rather than guessed at, for the same reason a wrong cover is worse than none.
  */
 public final class RipCheck {
     /**
@@ -42,11 +44,19 @@ public final class RipCheck {
     static final double SHORT_FRACTION = 0.10;
     /** Share of matching editions that must agree on a disc's track count for a search result to be used. */
     static final double MAJORITY = 2.0 / 3;
+    /** Under this size an audio file holds no real audio (a 1,139-byte FLAC is a header and nothing else). */
+    static final long EMPTY_BYTES = 64 * 1024;
     static final int MAX_LISTED = 6;
     static final int MIN_SCORE = 90;
 
+    /** Files that are expected next to a rip and are not stray. */
+    private static final Pattern KNOWN_EXTRA = Pattern.compile(
+            "(?i).*\\.(jpe?g|png|gif|bmp|webp|cue|log|m3u8?|pls|nfo|txt|accurip|md5|sfv|ffp|pdf)|desktop\\.ini|thumbs\\.db|\\.ds_store");
+
     public static final class Result {
         public final Album album;
+        /** From the tags, else the parent folder; may be null. */
+        public final String artist;
         /** Empty when the rip matches. */
         public final List<String> problems;
         /** Set when the album could not be checked. */
@@ -54,8 +64,9 @@ public final class RipCheck {
         /** What the album was compared with: one of the BY_ constants, or null when skipped. */
         public final String basis;
 
-        Result(Album album, List<String> problems, String skipped, String basis) {
+        Result(Album album, String artist, List<String> problems, String skipped, String basis) {
             this.album = album;
+            this.artist = artist;
             this.problems = problems;
             this.skipped = skipped;
             this.basis = basis;
@@ -76,6 +87,7 @@ public final class RipCheck {
     public static final String EDITIONS_DIFFER = "editions differ on MusicBrainz";
     public static final String NO_NAME = "no artist or album name";
     public static final String NETWORK = "network error";
+    public static final String ZERO_BASED = "track tags start at 0 instead of 1 (counted from 1 here)";
 
     private static final Pattern DISC = Pattern.compile("(?i)\\b(?:disc|disk|cd)\\s*(\\d+)");
 
@@ -87,10 +99,21 @@ public final class RipCheck {
 
     public Result check(Album a) {
         File[] files = a.dir.listFiles(f -> f.isFile() && AlbumScanner.isAudioName(f.getName()));
-        if (files == null || files.length == 0) return skip(a, "no tracks");
+        if (files == null || files.length == 0) return skip(a, null, "no tracks");
         Arrays.sort(files, Comparator.comparing(f -> f.getName().toLowerCase(Locale.ROOT)));
         List<TrackInfo> tracks = new ArrayList<>();
-        for (File f : files) tracks.add(TagReader.readTrack(f));
+        for (File f : files) tracks.add(TagReader.readTrack(f).withFile(f));
+        // Tags that count from 0 are shifted up before anything is compared, and reported once.
+        boolean zeroBased = tracks.stream().anyMatch(t -> t.track != null && t.track == 0);
+        if (zeroBased) {
+            List<TrackInfo> shifted = new ArrayList<>();
+            for (TrackInfo t : tracks) shifted.add(t.track == null ? t : t.withTrack(t.track + 1));
+            tracks = shifted;
+        }
+
+        Tags tags = TagReader.read(files[0]);
+        String artist = tags.bestArtist();
+        if (artist == null && a.dir.getParentFile() != null) artist = a.dir.getParentFile().getName();
 
         String mbid = null;
         Integer disc = null;
@@ -100,46 +123,66 @@ public final class RipCheck {
         }
         if (disc == null) disc = discFromName(a.dir.getName());
 
+        Result r = verdict(a, artist, tracks, tags, files[0], mbid, disc);
+        if (r.skipped != null) return r;
+
+        // Additions that hold whatever the verdict was compared with.
+        List<String> problems = new ArrayList<>(r.problems);
+        if (zeroBased) problems.add(ZERO_BASED);
+        String mismatch = tagNameMismatch(tracks);
+        if (mismatch != null) problems.add(mismatch);
+        if (r.problems.stream().anyMatch(p -> p.contains(" of ") || p.startsWith("missing"))) {
+            String stray = strayFiles(a.dir);
+            if (stray != null) problems.add(stray);
+        }
+        return new Result(a, artist, problems, null, r.basis);
+    }
+
+    private Result verdict(Album a, String artist, List<TrackInfo> tracks, Tags tags, File first, String mbid, Integer disc) {
         if (mbid != null) {
             try {
-                return byId(a, tracks, mbid, disc);
+                return byId(a, artist, tracks, mbid, disc);
             } catch (IOException e) {
-                return skip(a, NETWORK);
+                return skip(a, artist, NETWORK);
             } catch (JSONException e) {
-                return skip(a, NOT_ON_MB);
+                return skip(a, artist, NOT_ON_MB);
             }
         }
 
         // A stated total in the tags settles the count without the network.
         Integer total = statedTotal(tracks);
-        if (total != null) return new Result(a, compare(tracks, total, new HashMap<>()), null, BY_TAGS);
+        if (total != null) return new Result(a, artist, compare(tracks, total, new HashMap<>()), null, BY_TAGS);
 
         // Gaps in the numbers only see holes below the highest track present, so the search still runs
         // to learn the real count; the gaps stand on their own when it can't say.
         List<String> gaps = gaps(tracks);
         Result searched;
         try {
-            searched = bySearch(a, tracks, files[0], disc);
+            searched = bySearch(a, artist, tracks, tags, first, disc);
         } catch (IOException e) {
-            searched = skip(a, NETWORK);
+            searched = skip(a, artist, NETWORK);
         } catch (JSONException e) {
-            searched = skip(a, NO_INFO);
+            searched = skip(a, artist, NO_INFO);
         }
-        if (searched.skipped != null && !gaps.isEmpty()) return new Result(a, gaps, null, BY_TAGS);
+        if (searched.skipped == null) return searched;
+        // Nothing to compare the count with, but an empty file is a problem on its own.
+        List<String> local = new ArrayList<>(gaps);
+        local.addAll(empties(tracks));
+        if (!local.isEmpty()) return new Result(a, artist, local, null, BY_TAGS);
         return searched;
     }
 
     // ---- 1. MusicBrainz ID ----
 
-    private Result byId(Album a, List<TrackInfo> tracks, String mbid, Integer disc) throws IOException, JSONException {
+    private Result byId(Album a, String artist, List<TrackInfo> tracks, String mbid, Integer disc) throws IOException, JSONException {
         Http.Response res = http.get(ArtLookup.MB + "release/" + enc(mbid) + "?inc=recordings&fmt=json");
-        if (res.code == 404 || res.code == 400) return skip(a, NOT_ON_MB);
-        if (res.code != 200) return skip(a, NETWORK);
+        if (res.code == 404 || res.code == 400) return skip(a, artist, NOT_ON_MB);
+        if (res.code != 200) return skip(a, artist, NETWORK);
         JSONArray media = new JSONObject(new String(res.body, StandardCharsets.UTF_8)).optJSONArray("media");
-        if (media == null || media.length() == 0) return skip(a, NOT_ON_MB);
+        if (media == null || media.length() == 0) return skip(a, artist, NOT_ON_MB);
         JSONObject medium = pickMedium(media, disc);
-        if (medium == null) return skip(a, WHICH_DISC);
-        return new Result(a, compare(tracks, medium), null, BY_ID);
+        if (medium == null) return skip(a, artist, WHICH_DISC);
+        return new Result(a, artist, compare(tracks, medium), null, BY_ID);
     }
 
     // ---- 2. tags ----
@@ -155,7 +198,7 @@ public final class RipCheck {
         return best;
     }
 
-    /** "missing 3, 4" when the track numbers skip, judged up to the highest number present. */
+    /** "missing tracks 3, 4" when the track numbers skip, judged up to the highest number present. */
     static List<String> gaps(List<TrackInfo> tracks) {
         TreeSet<Integer> have = new TreeSet<>();
         for (TrackInfo t : tracks) {
@@ -170,10 +213,58 @@ public final class RipCheck {
         return out;
     }
 
+    /**
+     * "track tags are 1 lower than the file names" when most numbered files disagree by the same amount,
+     * else "track tags don't match the file names on N files". Null when they agree.
+     */
+    static String tagNameMismatch(List<TrackInfo> tracks) {
+        int both = 0;
+        Map<Integer, Integer> offsets = new HashMap<>();
+        for (TrackInfo t : tracks) {
+            if (t.track == null || t.fileNumber == null) continue;
+            both++;
+            int d = t.track - t.fileNumber;
+            if (d != 0) offsets.merge(d, 1, Integer::sum);
+        }
+        int off = 0;
+        for (int n : offsets.values()) off += n;
+        if (off == 0) return null;
+        if (offsets.size() == 1) {
+            int d = offsets.keySet().iterator().next();
+            String how = Math.abs(d) + (d < 0 ? " lower" : " higher");
+            String scope = off == both ? "" : " from about file " + firstMismatch(tracks);
+            return "track tags are " + how + " than the file names" + scope + " (" + off + " of " + both + " files)";
+        }
+        return "track tags don't match the file names on " + off + " of " + both + " files";
+    }
+
+    private static int firstMismatch(List<TrackInfo> tracks) {
+        int first = Integer.MAX_VALUE;
+        for (TrackInfo t : tracks) {
+            if (t.track != null && t.fileNumber != null && !t.track.equals(t.fileNumber)) first = Math.min(first, t.fileNumber);
+        }
+        return first;
+    }
+
+    /** Files in the folder that are neither audio nor the usual extras, e.g. a FLAC that lost its extension. */
+    static String strayFiles(File dir) {
+        File[] all = dir.listFiles(File::isFile);
+        if (all == null) return null;
+        List<String> stray = new ArrayList<>();
+        for (File f : all) {
+            String n = f.getName();
+            if (AlbumScanner.isAudioName(n) || KNOWN_EXTRA.matcher(n).matches()) continue;
+            stray.add(n);
+        }
+        if (stray.isEmpty()) return null;
+        stray.sort(String.CASE_INSENSITIVE_ORDER);
+        String names = String.join(", ", stray.subList(0, Math.min(3, stray.size()))) + (stray.size() > 3 ? " and " + (stray.size() - 3) + " more" : "");
+        return (stray.size() == 1 ? "1 file isn't recognised as audio: " : stray.size() + " files aren't recognised as audio: ") + names;
+    }
+
     // ---- 3. search ----
 
-    private Result bySearch(Album a, List<TrackInfo> tracks, File first, Integer disc) throws IOException, JSONException {
-        Tags t = TagReader.read(first);
+    private Result bySearch(Album a, String artistOrFolder, List<TrackInfo> tracks, Tags t, File first, Integer disc) throws IOException, JSONException {
         String artist = t.bestArtist();
         String album = t.album;
         if (artist == null || album == null) {
@@ -181,34 +272,59 @@ public final class RipCheck {
             if (artist == null) artist = g[0];
             if (album == null) album = g[1];
         }
-        if (artist == null || album == null) return skip(a, NO_NAME);
+        if (artist == null || album == null) return skip(a, artistOrFolder, NO_NAME);
 
         String q = "release:\"" + clean(ArtLookup.searchTitle(album)) + "\" AND artist:\"" + clean(artist) + "\"";
         Http.Response res = http.get(ArtLookup.MB + "release/?query=" + enc(q) + "&fmt=json&limit=25");
-        if (res.code >= 500) return skip(a, NETWORK);
-        if (res.code != 200) return skip(a, NO_INFO);
+        if (res.code >= 500) return skip(a, artistOrFolder, NETWORK);
+        if (res.code != 200) return skip(a, artistOrFolder, NO_INFO);
         JSONArray releases = new JSONObject(new String(res.body, StandardCharsets.UTF_8)).optJSONArray("releases");
-        Integer expected = agreedCount(releases, artist, album, disc, tracks.size());
-        if (expected == null) return skip(a, NO_INFO);
-        if (expected < 0) return skip(a, expected == WHICH ? WHICH_DISC : EDITIONS_DIFFER);
-        return new Result(a, compare(tracks, expected, new HashMap<>()), null, BY_SEARCH);
+        List<JSONObject> pool = candidates(releases, artist, album);
+        Integer expected = agreedCount(pool, disc, tracks.size());
+        if (expected == null) return skip(a, artistOrFolder, NO_INFO);
+        if (expected < 0) return skip(a, artistOrFolder, expected == WHICH ? WHICH_DISC : EDITIONS_DIFFER);
+        return new Result(a, artistOrFolder, compare(tracks, expected, lengthsFor(pool, disc, expected)), null, BY_SEARCH);
+    }
+
+    /**
+     * Track lengths from one edition that has the agreed count for this disc. Empty when none can be had
+     * (whole-set folders, or the lookup fails): the count still stands without them.
+     */
+    private Map<Integer, Long> lengthsFor(List<JSONObject> pool, Integer disc, int expected) {
+        for (JSONObject r : pool) {
+            JSONArray media = r.optJSONArray("media");
+            JSONObject m = medium(media, disc);
+            if (m == null || trackCount(m) != expected || r.optString("id").isEmpty()) continue;
+            try {
+                Http.Response res = http.get(ArtLookup.MB + "release/" + enc(r.optString("id")) + "?inc=recordings&fmt=json");
+                if (res.code != 200) return new HashMap<>();
+                JSONArray full = new JSONObject(new String(res.body, StandardCharsets.UTF_8)).optJSONArray("media");
+                JSONObject fm = full == null ? null : pickMedium(full, disc);
+                return fm == null || trackCount(fm) != expected ? new HashMap<>() : lengths(fm);
+            } catch (IOException | JSONException e) {
+                return new HashMap<>();
+            }
+        }
+        return new HashMap<>();
+    }
+
+    /** The search medium for this folder: by disc number, or the only one; null when neither applies. */
+    private static JSONObject medium(JSONArray media, Integer disc) {
+        if (media == null) return null;
+        if (disc == null) return media.length() == 1 ? media.optJSONObject(0) : null;
+        return disc <= media.length() ? media.optJSONObject(disc - 1) : null;
     }
 
     static final int DIFFER = -1;
     static final int WHICH = -2;
 
-    /**
-     * The disc's track count that a clear majority of matching CD editions share. Null when nothing
-     * matches; {@link #DIFFER} when editions disagree; {@link #WHICH} when the disc can't be told.
-     * {@code folderTracks} only decides whether a disc-less folder holds a whole multi-disc set; it never
-     * picks an edition.
-     */
-    static Integer agreedCount(JSONArray releases, String artist, String album, Integer disc, int folderTracks) {
-        if (releases == null) return null;
+    /** Matching releases (title, artist, score), CD editions only when there are any. */
+    static List<JSONObject> candidates(JSONArray releases, String artist, String album) {
+        List<JSONObject> cd = new ArrayList<>();
+        List<JSONObject> other = new ArrayList<>();
+        if (releases == null) return cd;
         String wantTitle = Text.norm(ArtLookup.searchTitle(album));
         String wantArtist = Text.norm(artist);
-        List<JSONArray> cd = new ArrayList<>();
-        List<JSONArray> other = new ArrayList<>();
         for (int i = 0; i < releases.length(); i++) {
             JSONObject r = releases.optJSONObject(i);
             if (r == null || r.optInt("score") < MIN_SCORE) continue;
@@ -217,14 +333,23 @@ public final class RipCheck {
             if (credit.isEmpty() || !(credit.equals(wantArtist) || credit.contains(wantArtist) || wantArtist.contains(credit))) continue;
             JSONArray media = r.optJSONArray("media");
             if (media == null || media.length() == 0) continue;
-            (allCd(media) ? cd : other).add(media);
+            (allCd(media) ? cd : other).add(r);
         }
-        List<JSONArray> pool = cd.isEmpty() ? other : cd;
-        if (pool.isEmpty()) return null;
+        return cd.isEmpty() ? other : cd;
+    }
 
+    /**
+     * The disc's track count that a clear majority of the editions share. Null when nothing matches;
+     * {@link #DIFFER} when editions disagree; {@link #WHICH} when the disc can't be told.
+     * {@code folderTracks} only decides whether a disc-less folder holds a whole multi-disc set; it never
+     * picks an edition.
+     */
+    static Integer agreedCount(List<JSONObject> pool, Integer disc, int folderTracks) {
+        if (pool.isEmpty()) return null;
         List<Integer> counts = new ArrayList<>();
         if (disc != null) {
-            for (JSONArray media : pool) {
+            for (JSONObject r : pool) {
+                JSONArray media = r.optJSONArray("media");
                 if (disc > media.length()) continue; // a single-disc edition of a two-disc set: not comparable
                 int n = trackCount(media.optJSONObject(disc - 1));
                 if (n > 0) counts.add(n);
@@ -234,7 +359,8 @@ public final class RipCheck {
             // can the folder be the whole set, and then only if it holds more than any one disc.
             int biggestDisc = 0;
             List<Integer> sets = new ArrayList<>();
-            for (JSONArray media : pool) {
+            for (JSONObject r : pool) {
+                JSONArray media = r.optJSONArray("media");
                 if (media.length() == 1) {
                     int n = trackCount(media.optJSONObject(0));
                     if (n > 0) counts.add(n);
@@ -296,25 +422,35 @@ public final class RipCheck {
     static List<String> compare(List<TrackInfo> files, JSONObject medium) {
         JSONArray rel = medium.optJSONArray("tracks");
         int expected = medium.optInt("track-count", rel == null ? 0 : rel.length());
-        Map<Integer, Long> lengths = new HashMap<>();
-        if (rel != null) {
-            for (int i = 0; i < rel.length(); i++) {
-                JSONObject t = rel.optJSONObject(i);
-                if (t == null) continue;
-                int pos = t.optInt("position", i + 1);
-                if (!t.isNull("length")) lengths.put(pos, t.optLong("length"));
-            }
-        }
-        return compare(files, expected, lengths);
+        return compare(files, expected, lengths(medium));
     }
 
-    /** Count against {@code expected}, then each track's length against {@code lengths} (by track number). */
+    private static Map<Integer, Long> lengths(JSONObject medium) {
+        Map<Integer, Long> out = new HashMap<>();
+        JSONArray rel = medium.optJSONArray("tracks");
+        if (rel == null) return out;
+        for (int i = 0; i < rel.length(); i++) {
+            JSONObject t = rel.optJSONObject(i);
+            if (t == null) continue;
+            int pos = t.optInt("position", i + 1);
+            if (!t.isNull("length")) out.put(pos, t.optLong("length"));
+        }
+        return out;
+    }
+
+    /** Count against {@code expected}, then each track against {@code lengths} (by track number). */
     static List<String> compare(List<TrackInfo> files, int expected, Map<Integer, Long> lengths) {
         List<String> problems = new ArrayList<>();
+        // Measure each track against its own song: by tag number, unless the file names line up with the
+        // release's lengths better (tags can be shifted; one wrong number turns every comparison wrong).
+        boolean byName = fits(files, lengths, true) > fits(files, lengths, false);
         if (expected > 0 && files.size() < expected) {
             String line = files.size() + " of " + expected + " tracks";
             TreeSet<Integer> have = new TreeSet<>();
-            for (TrackInfo t : files) if (t.track != null) have.add(t.track);
+            for (TrackInfo t : files) {
+                Integer n = byName ? t.fileNumber : t.track;
+                if (n != null) have.add(n);
+            }
             if (have.size() == files.size()) {
                 List<Integer> gone = new ArrayList<>();
                 for (int n = 1; n <= expected; n++) if (!have.contains(n)) gone.add(n);
@@ -322,21 +458,45 @@ public final class RipCheck {
             }
             problems.add(line);
         }
-
+        problems.addAll(empties(files));
         for (TrackInfo t : files) {
-            if (t.track == null || t.durationMs == null) continue;
-            if (t.durationMs < 1000) {
-                problems.add("track " + t.track + " is empty (" + clock(t.durationMs) + ")");
-                continue;
-            }
-            Long want = lengths.get(t.track);
+            Integer n = byName ? t.fileNumber : t.track;
+            if (isEmpty(t) || n == null || t.durationMs == null) continue;
+            Long want = lengths.get(n);
             if (want == null || want <= 0) continue;
-            long slack = Math.max(SHORT_MS, (long) (want * SHORT_FRACTION));
-            if (t.durationMs < want - slack) {
-                problems.add("track " + t.track + " is " + clock(t.durationMs) + ", expected " + clock(want));
+            if (t.durationMs < want - slack(want)) {
+                problems.add(t.label() + " is " + clock(t.durationMs) + ", expected " + clock(want));
             }
         }
         return problems;
+    }
+
+    private static long slack(long want) {
+        return Math.max(SHORT_MS, (long) (want * SHORT_FRACTION));
+    }
+
+    /** How many tracks land within the length tolerance of the release, numbering by file name or by tag. */
+    private static int fits(List<TrackInfo> files, Map<Integer, Long> lengths, boolean byName) {
+        int ok = 0;
+        for (TrackInfo t : files) {
+            Integer n = byName ? t.fileNumber : t.track;
+            if (n == null || t.durationMs == null || isEmpty(t)) continue;
+            Long want = lengths.get(n);
+            if (want != null && Math.abs(t.durationMs - want) <= slack(want)) ok++;
+        }
+        return ok;
+    }
+
+    /** Tracks with no real audio: under a second, or a tiny file that states no length. */
+    static List<String> empties(List<TrackInfo> files) {
+        List<String> out = new ArrayList<>();
+        for (TrackInfo t : files) if (isEmpty(t)) out.add(t.label() + " is empty");
+        return out;
+    }
+
+    static boolean isEmpty(TrackInfo t) {
+        if (t.durationMs != null) return t.durationMs < 1000;
+        return t.bytes >= 0 && t.bytes < EMPTY_BYTES;
     }
 
     /** The medium for this folder: its disc number, or the only medium there is. */
@@ -370,8 +530,8 @@ public final class RipCheck {
         return b.toString();
     }
 
-    private static Result skip(Album a, String why) {
-        return new Result(a, new ArrayList<>(), why, null);
+    private static Result skip(Album a, String artist, String why) {
+        return new Result(a, artist, new ArrayList<>(), why, null);
     }
 
     private static String clean(String s) {

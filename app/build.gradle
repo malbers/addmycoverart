@@ -11,8 +11,8 @@ android {
         minSdk 26
         // 29 keeps legacy file access working on Android 11 streamers such as the Eversolo DMP-A6.
         targetSdk 29
-        versionCode 16
-        versionName '1.0.4-ripcheck3'
+        versionCode 17
+        versionName '1.0.4-ripcheck4'
         buildConfigField 'String', 'USER_AGENT', "\"AddMyCoverArt/${versionName} ( https://youtube.com/@malbers )\""
     }
 

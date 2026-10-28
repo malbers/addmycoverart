@@ -324,23 +324,24 @@ public final class TagReader {
                 case "ALBUMARTIST": case "ALBUM ARTIST": case "ALBUM_ARTIST": if (albumArtist == null) albumArtist = v; break;
                 case "MUSICBRAINZ_ALBUMID": if (mbid == null) mbid = v; break;
                 // "3" or "3/14"
+                // Track 0 is kept: the Eversolo CD Ripper numbers tracks from 0, and the rip check reports it.
                 case "TRACKNUMBER":
-                    if (track == null) track = number(v, 0);
-                    if (trackTotal == null) trackTotal = number(v, 1);
+                    if (track == null) track = number(v, 0, true);
+                    if (trackTotal == null) trackTotal = number(v, 1, false);
                     break;
-                case "TRACKTOTAL": case "TOTALTRACKS": if (trackTotal == null) trackTotal = number(v, 0); break;
-                case "DISCNUMBER": if (disc == null) disc = number(v, 0); break;
+                case "TRACKTOTAL": case "TOTALTRACKS": if (trackTotal == null) trackTotal = number(v, 0, false); break;
+                case "DISCNUMBER": if (disc == null) disc = number(v, 0, false); break;
                 default: break;
             }
         }
 
         /** Part {@code i} of "n" or "n/m", or null. */
-        private static Integer number(String v, int i) {
+        private static Integer number(String v, int i, boolean zeroOk) {
             String[] parts = v.split("/");
             if (i >= parts.length) return null;
             try {
                 int n = Integer.parseInt(parts[i].trim());
-                return n > 0 ? n : null;
+                return n > 0 || (zeroOk && n == 0) ? n : null;
             } catch (NumberFormatException e) {
                 return null;
             }

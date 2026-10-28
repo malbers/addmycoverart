@@ -141,7 +141,7 @@ public class RipCheckTest {
         File d = albumDir("X");
         track(d, 1, 41_000, "mb-x", null);
         ArtLookupTest.FakeHttp http = new ArtLookupTest.FakeHttp().on("release/mb-x", release(medium(1, 252_000L)));
-        assertEquals(List.of("track 1 is 0:41, expected 4:12"), new RipCheck(http).check(album(d)).problems);
+        assertEquals(List.of("01 is 0:41, expected 4:12"), new RipCheck(http).check(album(d)).problems);
     }
 
     @Test
@@ -160,7 +160,116 @@ public class RipCheckTest {
     @Test
     public void emptyTrackFlagged() throws Exception {
         JSONObject m = new JSONObject(medium(1, (Long) null));
-        assertEquals(List.of("track 1 is empty (0:00)"), RipCheck.compare(List.of(new TrackInfo(1, null, null, 300L, "x")), m));
+        assertEquals(List.of("track 1 is empty"), RipCheck.compare(List.of(new TrackInfo(1, null, null, 300L, "x")), m));
+    }
+
+    // ---- ripcheck4: the Commodores case and friends ----
+
+    private static void raw(File dir, String name, byte[] bytes) throws Exception {
+        try (FileOutputStream o = new FileOutputStream(new File(dir, name))) { o.write(bytes); }
+    }
+
+    @Test
+    public void tinyFileWithNoLengthIsEmpty() throws Exception {
+        File d = albumDir("Tiny");
+        tagged(d, 1, "TRACKNUMBER=1", "TRACKTOTAL=2");
+        // A FLAC header with zero samples: the 1,139-byte files the ripper left behind.
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write("fLaC".getBytes(StandardCharsets.US_ASCII));
+        block(out, 0, true, new byte[34]);
+        raw(d, "02.Three Times a Lady.flac", out.toByteArray());
+        assertEquals(List.of("02.Three Times a Lady is empty"), new RipCheck(new ArtLookupTest.FakeHttp()).check(album(d)).problems);
+    }
+
+    @Test
+    public void searchBringsLengthsFromAMajorityEdition() throws Exception {
+        File d = new File(tmp.newFolder("Commodores"), "Anthology");
+        assertTrue(d.mkdir());
+        raw(d, "01.Zoom-Commodores.flac", flac(14_400, "TRACKNUMBER=1"));
+        raw(d, "02.Brick House-Commodores.flac", flac(203_600, "TRACKNUMBER=2"));
+        String rel = "{\"id\":\"ed-1\",\"score\":100,\"title\":\"Anthology\",\"artist-credit\":[{\"name\":\"Commodores\",\"joinphrase\":\"\"}],"
+                + "\"media\":[{\"format\":\"CD\",\"track-count\":2}]}";
+        ArtLookupTest.FakeHttp http = new ArtLookupTest.FakeHttp()
+                .on("release/?query", search(rel))
+                .on("release/ed-1", release(medium(1, 440_000L, 204_000L)));
+        RipCheck.Result r = new RipCheck(http).check(album(d));
+        assertEquals(RipCheck.BY_SEARCH, r.basis);
+        assertEquals(List.of("01.Zoom-Commodores is 0:14, expected 7:20"), r.problems);
+        assertEquals("Commodores", r.artist);
+    }
+
+    @Test
+    public void zeroBasedTagsAreShiftedAndReported() throws Exception {
+        // The Eversolo CD Ripper case: file "01" tagged 0, "02" tagged 1. Lengths must still line up.
+        File d = new File(tmp.newFolder("Commodores"), "Anthology");
+        assertTrue(d.mkdir());
+        raw(d, "01.Machine Gun.flac", flac(163_000, "TRACKNUMBER=0"));
+        raw(d, "02.Zoom.flac", flac(14_400, "TRACKNUMBER=1"));
+        raw(d, "03.Brick House.flac", flac(203_600, "TRACKNUMBER=2"));
+        String rel = "{\"id\":\"ed-1\",\"score\":100,\"title\":\"Anthology\",\"artist-credit\":[{\"name\":\"Commodores\",\"joinphrase\":\"\"}],"
+                + "\"media\":[{\"format\":\"CD\",\"track-count\":3}]}";
+        ArtLookupTest.FakeHttp http = new ArtLookupTest.FakeHttp()
+                .on("release/?query", search(rel))
+                .on("release/ed-1", release(medium(1, 165_000L, 440_000L, 204_000L)));
+        assertEquals(List.of("02.Zoom is 0:14, expected 7:20", RipCheck.ZERO_BASED), new RipCheck(http).check(album(d)).problems);
+    }
+
+    @Test
+    public void lengthsFollowFileNamesWhenTagsAreShifted() throws Exception {
+        // Tags shifted by one (not from 0): file names line up with the release, so they are used.
+        List<TrackInfo> t = List.of(
+                new TrackInfo(2, null, null, 163_000L, null).withFile(new File(tmp.getRoot(), "01.A.flac")),
+                new TrackInfo(3, null, null, 440_000L, null).withFile(new File(tmp.getRoot(), "02.B.flac")),
+                new TrackInfo(4, null, null, 204_000L, null).withFile(new File(tmp.getRoot(), "03.C.flac")));
+        JSONObject m = new JSONObject(medium(1, 165_000L, 440_000L, 204_000L, 300_000L));
+        assertEquals(List.of("3 of 4 tracks, missing 4"), RipCheck.compare(t, m));
+    }
+
+    @Test
+    public void tagsOneLowerThanFileNames() {
+        List<TrackInfo> t = List.of(info(15, "16.Cebu"), info(16, "17.Zoom"), info(17, "18.Brick House"));
+        assertEquals("track tags are 1 lower than the file names (3 of 3 files)", RipCheck.tagNameMismatch(t));
+    }
+
+    @Test
+    public void tagsShiftedPartWay() {
+        List<TrackInfo> t = List.of(info(1, "01.A"), info(2, "02.B"), info(2, "03.C"), info(3, "04.D"));
+        assertEquals("track tags are 1 lower than the file names from about file 3 (2 of 4 files)", RipCheck.tagNameMismatch(t));
+    }
+
+    @Test
+    public void matchingNamesAndDiscTrackNamesAreFine() {
+        assertNull(RipCheck.tagNameMismatch(List.of(info(1, "01.A"), info(2, "02 B"))));
+        assertNull(RipCheck.tagNameMismatch(List.of(info(3, "1-03 Title"), info(4, "1-04 Next"))));
+        assertNull(RipCheck.tagNameMismatch(List.of(info(1, "1967-1970 Intro"))));
+    }
+
+    private TrackInfo info(int track, String fileName) {
+        try {
+            File f = new File(tmp.getRoot(), fileName + ".flac");
+            return new TrackInfo(track, null, null, 100_000L, null).withFile(f);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    @Test
+    public void strayFileListedWhenShort() throws Exception {
+        File d = albumDir("Aventine");
+        tagged(d, 1, "TRACKNUMBER=1/2");
+        raw(d, "02.Fuel to Fire", flac(100_000, "TRACKNUMBER=2/2")); // lost its .flac
+        raw(d, "Aventine.cue", new byte[]{1});
+        raw(d, "folder.jpg", new byte[]{1});
+        assertEquals(List.of("1 of 2 tracks, missing 2", "1 file isn't recognised as audio: 02.Fuel to Fire"),
+                new RipCheck(new ArtLookupTest.FakeHttp()).check(album(d)).problems);
+    }
+
+    @Test
+    public void noStrayListWhenComplete() throws Exception {
+        File d = albumDir("Done");
+        tagged(d, 1, "TRACKNUMBER=1/1");
+        raw(d, "notes", new byte[]{1});
+        assertTrue(new RipCheck(new ArtLookupTest.FakeHttp()).check(album(d)).ok());
     }
 
     private static void tagged(File dir, int n, String... tags) throws Exception {
