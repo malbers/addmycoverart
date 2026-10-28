@@ -21,7 +21,8 @@ Built for the Eversolo DMP-A6, where CD rips made before the CD Ripper fix often
 1. **Pick a folder** on the internal storage or an attached drive, e.g. `EverSoloMusic`.
 2. **Scan.** Every folder with audio files counts as an album. You get a count of albums, how many already have art, and a list of the ones missing it.
 3. **Fetch Album Art.** For each album it shows the cover as it is found, saves it, and moves to the next.
-4. **Report.** What was added, what couldn't be found and why, and what was skipped. Then rescan your library on the Eversolo so the new covers show.
+4. **Report.** What was added, what couldn't be found and why, and what was skipped.
+5. **See the covers.** Open your music library on the Eversolo. It usually picks up the new covers by itself; if some still show a blank disc, run a library rescan.
 
 **It keeps itself up to date.** Once a day it checks for a new version. When one is out, an **Update available** button appears; one tap downloads it, and you install it from the Files app. No computer needed. See [Updating later](#updating-later).
 
