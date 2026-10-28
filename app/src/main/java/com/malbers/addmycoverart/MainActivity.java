@@ -2,10 +2,12 @@ package com.malbers.addmycoverart;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.DownloadManager;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
@@ -30,6 +32,7 @@ import com.malbers.addmycoverart.core.AlbumScanner;
 import com.malbers.addmycoverart.core.ArtLookup;
 import com.malbers.addmycoverart.core.LookupResult;
 import com.malbers.addmycoverart.core.ScanResult;
+import com.malbers.addmycoverart.core.UpdateCheck;
 import com.malbers.addmycoverart.core.UrlHttp;
 import com.malbers.addmycoverart.ui.FetchJob;
 import com.malbers.addmycoverart.ui.ItemAdapter;
@@ -73,6 +76,7 @@ public class MainActivity extends Activity {
         root.setPadding(pad, Ui.dp(this, 14), pad, Ui.dp(this, 14));
         setContentView(root);
         start();
+        checkForUpdate();
     }
 
     @Override
@@ -98,6 +102,11 @@ public class MainActivity extends Activity {
 
     /** Clears everything and lays out header, body and bottom buttons. */
     private void frame(Screen s, String subtitle, View body, View... buttons) {
+        frameWithLeft(s, subtitle, body, null, buttons);
+    }
+
+    /** As {@link #frame}, with an optional view at the bottom left, opposite the buttons. */
+    private void frameWithLeft(Screen s, String subtitle, View body, View left, View... buttons) {
         screen = s;
         root.removeAllViews();
         LinearLayout header = Ui.row(this);
@@ -127,12 +136,116 @@ public class MainActivity extends Activity {
         bp.bottomMargin = Ui.dp(this, 12);
         root.addView(body, bp);
 
-        if (buttons.length > 0) {
+        if (buttons.length > 0 || left != null) {
             LinearLayout bar = Ui.row(this);
-            bar.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+            if (left != null) bar.addView(left);
+            // Zero height: a bare View sized wrap_content grows to fill the screen and squeezes the list out.
+            bar.addView(new View(this), new LinearLayout.LayoutParams(0, 0, 1));
             for (View b : buttons) bar.addView(b, Ui.wrap(Ui.dp(this, 10)));
             root.addView(bar);
         }
+    }
+
+    // ---------- update check ----------
+
+    private static final long DAY_MS = 24L * 60 * 60 * 1000;
+
+    /** At most once a day, ask GitHub for the latest release; the answer is kept for the pill below. */
+    private void checkForUpdate() {
+        long now = System.currentTimeMillis();
+        if (now - prefs.getLong("upd_checked", 0) < DAY_MS) return;
+        prefs.edit().putLong("upd_checked", now).apply();
+        new Thread(() -> {
+            UpdateCheck.Release r = UpdateCheck.latest(new UrlHttp(BuildConfig.USER_AGENT));
+            if (r == null) return;
+            prefs.edit().putString("upd_version", r.version).putString("upd_url", r.url).apply();
+            runOnUiThread(() -> {
+                if (screen == Screen.BROWSE) showBrowse(browseDir);
+            });
+        }, "update-check").start();
+    }
+
+    /** "Update available" pill that opens the download in the browser, or null when up to date. */
+    private View updatePill() {
+        String v = prefs.getString("upd_version", null);
+        String url = prefs.getString("upd_url", null);
+        if (v == null || url == null || !UpdateCheck.isNewer(v, BuildConfig.VERSION_NAME)) return null;
+        updateText = Ui.text(this, "", 15, Ui.GOOD, true);
+        updateText.setBackground(Ui.rounded(this, Ui.CARD, 24));
+        int h = Ui.dp(this, 18);
+        updateText.setPadding(h, Ui.dp(this, 12), h, Ui.dp(this, 12));
+        showUpdateState(v);
+        updateText.setOnClickListener(x -> {
+            if (downloadId < 0 || "failed".equals(downloadState)) downloadUpdate(v, url);
+        });
+        return updateText;
+    }
+
+    private TextView updateText;
+    private long downloadId = -1;
+    private String downloadState; // null, "running", "done", "failed"
+
+    private void showUpdateState(String v) {
+        if (updateText == null) return;
+        if ("running".equals(downloadState)) {
+            updateText.setTextColor(Ui.ACCENT);
+            updateText.setText("Downloading " + v + "…");
+        } else if ("done".equals(downloadState)) {
+            updateText.setTextColor(Ui.GOOD);
+            updateText.setText("Saved. Open Files › Storage › Download and tap it to install");
+        } else if ("failed".equals(downloadState)) {
+            updateText.setTextColor(Ui.BAD);
+            updateText.setText("Download failed · tap to try again");
+        } else {
+            updateText.setTextColor(Ui.GOOD);
+            updateText.setText("Update available: " + v + " · Download");
+        }
+    }
+
+    /**
+     * Saves the APK to the shared Download folder with Android's own download service, so no browser
+     * is needed (most Eversolos have none). Falls back to a browser only if that service is missing.
+     */
+    private void downloadUpdate(String v, String url) {
+        DownloadManager dm = getSystemService(DownloadManager.class);
+        try {
+            DownloadManager.Request req = new DownloadManager.Request(Uri.parse(url))
+                    .setTitle("AddMyCoverArt " + v)
+                    .setMimeType("application/vnd.android.package-archive")
+                    .addRequestHeader("User-Agent", BuildConfig.USER_AGENT)
+                    .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                    .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "AddMyCoverArt-" + v + ".apk");
+            downloadId = dm.enqueue(req);
+        } catch (Exception e) {
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+            } catch (Exception ignored) {
+                downloadState = "failed";
+                showUpdateState(v);
+            }
+            return;
+        }
+        downloadState = "running";
+        showUpdateState(v);
+        pollDownload(dm, v);
+    }
+
+    private void pollDownload(DownloadManager dm, String v) {
+        root.postDelayed(() -> {
+            int status = -1;
+            try (Cursor c = dm.query(new DownloadManager.Query().setFilterById(downloadId))) {
+                if (c != null && c.moveToFirst()) status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+            } catch (Exception ignored) {
+                // treated as failed below
+            }
+            if (status == DownloadManager.STATUS_SUCCESSFUL) downloadState = "done";
+            else if (status == DownloadManager.STATUS_FAILED || status == -1) downloadState = "failed";
+            else {
+                pollDownload(dm, v);
+                return;
+            }
+            showUpdateState(v);
+        }, 500);
     }
 
     private LinearLayout card() {
@@ -231,10 +344,11 @@ public class MainActivity extends Activity {
         });
         body.addView(l, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT));
         String sub = dir == null ? "Choose where your music is" : dir.getPath();
+        View update = updatePill();
         if (dir == null) {
-            frame(Screen.BROWSE, sub, body);
+            frameWithLeft(Screen.BROWSE, sub, body, update);
         } else {
-            frame(Screen.BROWSE, sub, body,
+            frameWithLeft(Screen.BROWSE, sub, body, update,
                     Ui.button(this, "Up", v -> goUp()),
                     Ui.button(this, "Scan this folder", true, v -> startScan(dir)));
         }

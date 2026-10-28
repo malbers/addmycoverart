@@ -23,6 +23,8 @@ Built for the Eversolo DMP-A6, where CD rips made before the CD Ripper fix often
 3. **Fetch Album Art.** For each album it shows the cover as it is found, saves it, and moves to the next.
 4. **Report.** What was added, what couldn't be found and why, and what was skipped. Then rescan your library on the Eversolo so the new covers show.
 
+**It keeps itself up to date.** Once a day it checks for a new version. When one is out, an **Update available** button appears; one tap downloads it, and you install it from the Files app. No computer needed. See [Updating later](#updating-later).
+
 ## What it never does
 
 - It never changes, renames, moves or deletes your music, tags or folders.
@@ -37,11 +39,11 @@ Built for the Eversolo DMP-A6, where CD rips made before the CD Ripper fix often
 
 It only uses a match it is confident about: same title, same artist, closest track count. **A skipped album is better than the wrong cover.** Mix CDs, home recordings and obscure compilations will show up as "Couldn't find", which is expected.
 
-The app contacts only `musicbrainz.org` and `coverartarchive.org`, and paces its requests to stay well inside MusicBrainz's limits.
+The app contacts only `musicbrainz.org` and `coverartarchive.org` for covers, pacing its requests to stay well inside MusicBrainz's limits, plus GitHub (`api.github.com`) at most once a day to see whether a newer version is out. Nothing about you or your music is sent.
 
 ## Download
 
-[**AddMyCoverArt-1.0.2.apk**](https://github.com/malbers/addmycoverart/releases/download/v1.0.2/AddMyCoverArt-1.0.2.apk) (from the [v1.0.2 release](https://github.com/malbers/addmycoverart/releases/tag/v1.0.2))
+[**AddMyCoverArt-1.0.3.apk**](https://github.com/malbers/addmycoverart/releases/download/v1.0.3/AddMyCoverArt-1.0.3.apk) (from the [v1.0.3 release](https://github.com/malbers/addmycoverart/releases/tag/v1.0.3))
 
 Download it to your laptop or desktop, not to the Eversolo. The next section shows how to get it from your computer onto the Eversolo.
 
@@ -61,7 +63,7 @@ Download it to your laptop or desktop, not to the Eversolo. The next section sho
 
    ![Eversolo web upload page with the Upload Apk button](docs/install/2-upload-page.jpg)
 
-3. **Send the app.** Click **Select APK File**, find `AddMyCoverArt-1.0.2.apk` where you downloaded it (usually your Downloads folder), and choose it. It uploads and installs on the Eversolo by itself.
+3. **Send the app.** Click **Select APK File**, find `AddMyCoverArt-1.0.3.apk` where you downloaded it (usually your Downloads folder), and choose it. It uploads and installs on the Eversolo by itself.
 
    ![Select APK File](docs/install/3-select-apk.jpg)
 
@@ -78,7 +80,7 @@ Use this if the upload page doesn't work for you, or if you already copy music t
    - **Windows:** open File Explorer, click in the address bar at the top, type the `\\` address and press Enter.
    - **Mac:** in Finder, choose **Go > Connect to Server** (or press Cmd+K), type the `smb://` address and click Connect. If it asks how to connect, choose **Guest**.
 3. **Copy the APK** into any folder on the Eversolo, for example the `Download` folder on its SSD. Drag it in like any other file.
-4. **Install it from the Eversolo.** On the Eversolo, open the built-in **Files** app, go to the folder you used, and tap `AddMyCoverArt-1.0.2.apk`.
+4. **Install it from the Eversolo.** On the Eversolo, open the built-in **Files** app, go to the folder you used, and tap `AddMyCoverArt-1.0.3.apk`.
 
    ![The APK in the Eversolo Files app](docs/install/smb-1-files-app.jpg)
 
@@ -108,7 +110,19 @@ The first time you open it, the app asks for permission to read your music folde
 
 ### Updating later
 
-Download the new APK and repeat Option A or B. It installs over the old version; you don't need to uninstall first.
+You don't need to come back here to check for new versions: from version 1.0.3 on, the app checks once a day by itself. When there is one, you update right on the Eversolo, with no computer and no browser needed. (Android always asks you to confirm an install, so nothing ever updates without your tap.)
+
+1. **Tap "Update available"** at the bottom left of the app's folder screen.
+
+   ![Update available](docs/install/update-1-pill.jpg)
+
+2. **Wait a moment.** It downloads the new version by itself and tells you when it's saved.
+
+   ![Saved to the Download folder](docs/install/update-2-saved.jpg)
+
+3. **Install it.** Open the **Files** app, choose **Storage** on the left (the Eversolo's own storage, not the SSD), open **Download**, tap the new `AddMyCoverArt` APK and tap **Install**, as in Option B. It installs over the old version; nothing in the app is lost.
+
+You can also download any version from the [releases page](https://github.com/malbers/addmycoverart/releases) on your computer and use Option A or B.
 
 ### Is this file really from me?
 
