@@ -684,7 +684,7 @@ public class MainActivity extends Activity {
                 + (issues.isEmpty()
                     ? "No missing or short tracks found in the albums checked."
                     : "These albums have fewer tracks than the release, or tracks much shorter than they should be. Nothing was changed.")
-                + (skipped.isEmpty() ? "" : " Albums without a MusicBrainz ID can't be checked.");
+                + (skipped.isEmpty() ? "" : " \"Not checked\" means there was nothing reliable to compare with.");
         TextView n = Ui.text(this, note, 15, Ui.TEXT, false);
         n.setPadding(Ui.dp(this, 4), Ui.dp(this, 12), 0, Ui.dp(this, 8));
         body.addView(n);

@@ -163,14 +163,118 @@ public class RipCheckTest {
         assertEquals(List.of("track 1 is empty (0:00)"), RipCheck.compare(List.of(new TrackInfo(1, null, null, 300L, "x")), m));
     }
 
+    private static void tagged(File dir, int n, String... tags) throws Exception {
+        try (FileOutputStream o = new FileOutputStream(new File(dir, String.format("%02d.flac", n)))) {
+            o.write(flac(100_000, tags));
+        }
+    }
+
+    private static String found(String title, String artist, String format, int... discs) {
+        StringBuilder m = new StringBuilder();
+        for (int i = 0; i < discs.length; i++) {
+            if (i > 0) m.append(',');
+            m.append("{\"format\":\"").append(format).append("\",\"track-count\":").append(discs[i]).append('}');
+        }
+        return "{\"score\":100,\"title\":\"" + title + "\",\"artist-credit\":[{\"name\":\"" + artist
+                + "\",\"joinphrase\":\"\"}],\"media\":[" + m + "]}";
+    }
+
+    private static String search(String... releases) {
+        return "{\"releases\":[" + String.join(",", releases) + "]}";
+    }
+
+    // ---- 2. tags, no network ----
+
     @Test
-    public void noIdIsSkippedWithoutNetwork() throws Exception {
-        File d = albumDir("NoId");
-        try (FileOutputStream o = new FileOutputStream(new File(d, "01.flac"))) { o.write(flac(1000, "TRACKNUMBER=1")); }
+    public void statedTotalFlagsMissingWithoutNetwork() throws Exception {
+        File d = albumDir("Total");
+        tagged(d, 1, "TRACKNUMBER=1/4");
+        tagged(d, 2, "TRACKNUMBER=2/4");
         ArtLookupTest.FakeHttp http = new ArtLookupTest.FakeHttp();
         RipCheck.Result r = new RipCheck(http).check(album(d));
-        assertEquals(RipCheck.NO_ID, r.skipped);
+        assertEquals(RipCheck.BY_TAGS, r.basis);
+        assertEquals(List.of("2 of 4 tracks, missing 3, 4"), r.problems);
         assertTrue(http.asked.isEmpty());
+    }
+
+    @Test
+    public void trackTotalTagCounts() throws Exception {
+        File d = albumDir("Total2");
+        tagged(d, 1, "TRACKNUMBER=1", "TRACKTOTAL=1");
+        RipCheck.Result r = new RipCheck(new ArtLookupTest.FakeHttp()).check(album(d));
+        assertEquals(RipCheck.BY_TAGS, r.basis);
+        assertTrue(r.ok());
+    }
+
+    @Test
+    public void gapsFlaggedWithoutNetwork() throws Exception {
+        File d = albumDir("Gaps");
+        tagged(d, 1, "TRACKNUMBER=1");
+        tagged(d, 2, "TRACKNUMBER=2");
+        tagged(d, 5, "TRACKNUMBER=5");
+        ArtLookupTest.FakeHttp http = new ArtLookupTest.FakeHttp();
+        assertEquals(List.of("missing tracks 3, 4"), new RipCheck(http).check(album(d)).problems);
+        assertTrue(http.asked.isEmpty());
+    }
+
+    // ---- 3. search ----
+
+    private File beatlesDisc(int disc, int tracks) throws Exception {
+        File d = new File(tmp.newFolder("The Beatles"), "1967-1970 (Disc " + disc + ")");
+        assertTrue(d.mkdir());
+        for (int n = 1; n <= tracks; n++) tagged(d, n, "TRACKNUMBER=" + n);
+        return d;
+    }
+
+    @Test
+    public void searchUsesCountAllEditionsAgreeOn() throws Exception {
+        File d = beatlesDisc(1, 11);
+        ArtLookupTest.FakeHttp http = new ArtLookupTest.FakeHttp().on("release/?query", search(
+                found("1967-1970", "The Beatles", "CD", 14, 14),
+                found("1967-1970", "The Beatles", "CD", 14, 14),
+                // a vinyl edition with different sides does not count while CD editions exist
+                found("1967-1970", "The Beatles", "12\\\" Vinyl", 8, 8, 7, 7)));
+        RipCheck.Result r = new RipCheck(http).check(album(d));
+        assertEquals(RipCheck.BY_SEARCH, r.basis);
+        assertEquals(List.of("11 of 14 tracks, missing 12, 13, 14"), r.problems);
+    }
+
+    @Test
+    public void editionsThatDisagreeAreNotChecked() throws Exception {
+        File d = beatlesDisc(1, 11);
+        ArtLookupTest.FakeHttp http = new ArtLookupTest.FakeHttp().on("release/?query", search(
+                found("1967-1970", "The Beatles", "CD", 14, 14),
+                found("1967-1970", "The Beatles", "CD", 11, 17)));
+        assertEquals(RipCheck.EDITIONS_DIFFER, new RipCheck(http).check(album(d)).skipped);
+    }
+
+    @Test
+    public void otherTitlesAndArtistsIgnored() throws Exception {
+        File d = beatlesDisc(2, 3);
+        ArtLookupTest.FakeHttp http = new ArtLookupTest.FakeHttp().on("release/?query", search(
+                found("1967-1970", "The Beatles", "CD", 14, 14),
+                found("1962-1966", "The Beatles", "CD", 13, 13),
+                found("1967-1970", "Tribute Band", "CD", 20, 20)));
+        assertEquals(List.of("3 of 14 tracks, missing 4, 5, 6, 7, 8, 9 and 5 more"), new RipCheck(http).check(album(d)).problems);
+    }
+
+    @Test
+    public void nothingFoundIsNotChecked() throws Exception {
+        File d = albumDir("Mix CD");
+        tagged(d, 1, "TRACKNUMBER=1");
+        ArtLookupTest.FakeHttp http = new ArtLookupTest.FakeHttp().on("release/?query", search());
+        RipCheck.Result r = new RipCheck(http).check(album(d));
+        assertEquals(RipCheck.NO_INFO, r.skipped);
+        assertTrue(http.asked.get(0).contains("release/?query"));
+    }
+
+    @Test
+    public void singleDiscFolderAgainstSetNeedsDisc() throws Exception {
+        File d = new File(tmp.newFolder("Artist"), "Album");
+        assertTrue(d.mkdir());
+        tagged(d, 1, "TRACKNUMBER=1");
+        ArtLookupTest.FakeHttp http = new ArtLookupTest.FakeHttp().on("release/?query", search(found("Album", "Artist", "CD", 10, 10)));
+        assertEquals(RipCheck.WHICH_DISC, new RipCheck(http).check(album(d)).skipped);
     }
 
     @Test
