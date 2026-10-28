@@ -42,8 +42,12 @@ public final class RipCheck {
      */
     static final long SHORT_MS = 10_000;
     static final double SHORT_FRACTION = 0.10;
-    /** Share of matching editions that must agree on a disc's track count for a search result to be used. */
-    static final double MAJORITY = 2.0 / 3;
+    /**
+     * Matched by search, the lengths come from an edition that may be a different performance or remaster,
+     * so only a drastic shortfall counts: under this share of the expected length (a 0:14 "Zoom" against
+     * 4:24 is 5%; every false alarm in the 2026-10-28 library run was 29% or more).
+     */
+    static final double DRASTIC_FRACTION = 0.25;
     /** Under this size an audio file holds no real audio (a 1,139-byte FLAC is a header and nothing else). */
     static final long EMPTY_BYTES = 64 * 1024;
     static final int MAX_LISTED = 6;
@@ -84,7 +88,6 @@ public final class RipCheck {
     public static final String NO_INFO = "no track total, not found on MusicBrainz";
     public static final String NOT_ON_MB = "MusicBrainz ID not found";
     public static final String WHICH_DISC = "can't tell which disc";
-    public static final String EDITIONS_DIFFER = "editions differ on MusicBrainz";
     public static final String NO_NAME = "no artist or album name";
     public static final String NETWORK = "network error";
 
@@ -151,7 +154,7 @@ public final class RipCheck {
 
         // A stated total in the tags settles the count without the network.
         Integer total = statedTotal(tracks);
-        if (total != null) return new Result(a, artist, compare(tracks, total, new HashMap<>()), null, BY_TAGS);
+        if (total != null) return new Result(a, artist, compare(tracks, total, new HashMap<>(), false), null, BY_TAGS);
 
         // Gaps in the numbers only see holes below the highest track present, so the search still runs
         // to learn the real count; the gaps stand on their own when it can't say.
@@ -282,8 +285,8 @@ public final class RipCheck {
         List<JSONObject> pool = candidates(releases, artist, album);
         Integer expected = agreedCount(pool, disc, tracks.size());
         if (expected == null) return skip(a, artistOrFolder, NO_INFO);
-        if (expected < 0) return skip(a, artistOrFolder, expected == WHICH ? WHICH_DISC : EDITIONS_DIFFER);
-        return new Result(a, artistOrFolder, compare(tracks, expected, lengthsFor(pool, disc, expected)), null, BY_SEARCH);
+        if (expected == WHICH) return skip(a, artistOrFolder, WHICH_DISC);
+        return new Result(a, artistOrFolder, compare(tracks, expected, lengthsFor(pool, disc, expected), true), null, BY_SEARCH);
     }
 
     /**
@@ -315,7 +318,6 @@ public final class RipCheck {
         return disc <= media.length() ? media.optJSONObject(disc - 1) : null;
     }
 
-    static final int DIFFER = -1;
     static final int WHICH = -2;
 
     /** Matching releases (title, artist, score), CD editions only when there are any. */
@@ -339,8 +341,8 @@ public final class RipCheck {
     }
 
     /**
-     * The disc's track count that a clear majority of the editions share. Null when nothing matches;
-     * {@link #DIFFER} when editions disagree; {@link #WHICH} when the disc can't be told.
+     * The disc's track count the common editions guarantee: see {@link #baseCount}. Null when nothing
+     * matches; {@link #WHICH} when the disc can't be told.
      * {@code folderTracks} only decides whether a disc-less folder holds a whole multi-disc set; it never
      * picks an edition.
      */
@@ -381,17 +383,25 @@ public final class RipCheck {
             }
         }
         if (counts.isEmpty()) return null;
-        return majority(counts);
+        return baseCount(counts);
     }
 
-    /** The value at least {@link #MAJORITY} of the list shares, else {@link #DIFFER}. */
-    static int majority(List<Integer> counts) {
+    /**
+     * The smallest track count that at least two editions share (else the smallest there is). Bonus-track
+     * reissues outnumber the original on MusicBrainz (Tapestry: 12 vs 14), so a majority would call a
+     * complete standard album short. A folder below even the standard edition is missing tracks under every
+     * reading. It can only under-report, never invent a missing track.
+     */
+    static int baseCount(List<Integer> counts) {
         Map<Integer, Integer> votes = new HashMap<>();
         for (int n : counts) votes.merge(n, 1, Integer::sum);
+        Integer shared = null;
+        int smallest = Integer.MAX_VALUE;
         for (Map.Entry<Integer, Integer> e : votes.entrySet()) {
-            if (e.getValue() >= MAJORITY * counts.size()) return e.getKey();
+            smallest = Math.min(smallest, e.getKey());
+            if (e.getValue() >= 2 && (shared == null || e.getKey() < shared)) shared = e.getKey();
         }
-        return DIFFER;
+        return shared != null ? shared : smallest;
     }
 
     private static int trackCount(JSONObject medium) {
@@ -422,7 +432,7 @@ public final class RipCheck {
     static List<String> compare(List<TrackInfo> files, JSONObject medium) {
         JSONArray rel = medium.optJSONArray("tracks");
         int expected = medium.optInt("track-count", rel == null ? 0 : rel.length());
-        return compare(files, expected, lengths(medium));
+        return compare(files, expected, lengths(medium), false);
     }
 
     private static Map<Integer, Long> lengths(JSONObject medium) {
@@ -438,8 +448,11 @@ public final class RipCheck {
         return out;
     }
 
-    /** Count against {@code expected}, then each track against {@code lengths} (by track number). */
-    static List<String> compare(List<TrackInfo> files, int expected, Map<Integer, Long> lengths) {
+    /**
+     * Count against {@code expected}, then each track against {@code lengths} (by track number).
+     * {@code drasticOnly}: the lengths are from another edition, so flag only {@link #DRASTIC_FRACTION}.
+     */
+    static List<String> compare(List<TrackInfo> files, int expected, Map<Integer, Long> lengths, boolean drasticOnly) {
         List<String> problems = new ArrayList<>();
         // Measure each track against its own song: by tag number, unless the file names line up with the
         // release's lengths better (tags can be shifted; one wrong number turns every comparison wrong).
@@ -464,7 +477,8 @@ public final class RipCheck {
             if (isEmpty(t) || n == null || t.durationMs == null) continue;
             Long want = lengths.get(n);
             if (want == null || want <= 0) continue;
-            if (t.durationMs < want - slack(want)) {
+            boolean shortTrack = drasticOnly ? t.durationMs < want * DRASTIC_FRACTION : t.durationMs < want - slack(want);
+            if (shortTrack) {
                 problems.add(t.label() + " is " + clock(t.durationMs) + ", expected " + clock(want));
             }
         }

@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 
 import org.json.JSONObject;
 import org.junit.Rule;
@@ -341,10 +342,36 @@ public class RipCheckTest {
     }
 
     @Test
-    public void majorityOfEditionsIsEnough() {
-        assertEquals(14, RipCheck.majority(List.of(14, 14, 17)));
-        assertEquals(RipCheck.DIFFER, RipCheck.majority(List.of(14, 17)));
-        assertEquals(14, RipCheck.majority(List.of(14)));
+    public void baseCountIsTheSmallestSharedEdition() {
+        // Tapestry: the 12-track original, outnumbered by 14-track reissues, is still the base.
+        assertEquals(12, RipCheck.baseCount(List.of(14, 14, 14, 12, 12)));
+        // A one-off short promo doesn't set the bar while a shared count exists.
+        assertEquals(14, RipCheck.baseCount(List.of(14, 14, 3)));
+        // Nothing shared: the smallest there is.
+        assertEquals(14, RipCheck.baseCount(List.of(14, 17)));
+        assertEquals(14, RipCheck.baseCount(List.of(14)));
+    }
+
+    @Test
+    public void bonusEditionsDontMakeAStandardAlbumShort() throws Exception {
+        File d = new File(tmp.newFolder("Carole King"), "Tapestry");
+        assertTrue(d.mkdir());
+        for (int n = 1; n <= 12; n++) tagged(d, n, "TRACKNUMBER=" + n);
+        ArtLookupTest.FakeHttp http = new ArtLookupTest.FakeHttp().on("release/?query", search(
+                found("Tapestry", "Carole King", "CD", 14), found("Tapestry", "Carole King", "CD", 14),
+                found("Tapestry", "Carole King", "CD", 14), found("Tapestry", "Carole King", "CD", 12),
+                found("Tapestry", "Carole King", "CD", 12)));
+        assertTrue(new RipCheck(http).check(album(d)).ok());
+    }
+
+    @Test
+    public void searchLengthsFlagOnlyDrasticShortfalls() {
+        // B.B. King Live at the Regal: 2:39 against another edition's 3:09 is a different performance.
+        List<TrackInfo> t = List.of(new TrackInfo(1, null, null, 159_000L, null), new TrackInfo(2, null, null, 14_400L, null));
+        Map<Integer, Long> lengths = Map.of(1, 189_000L, 2, 264_000L);
+        assertEquals(List.of("track 2 is 0:14, expected 4:24"), RipCheck.compare(t, 2, lengths, true));
+        // Matched by ID, the same 30 s shortfall is real.
+        assertEquals(2, RipCheck.compare(t, 2, lengths, false).size());
     }
 
     @Test
@@ -408,7 +435,8 @@ public class RipCheckTest {
         ArtLookupTest.FakeHttp http = new ArtLookupTest.FakeHttp().on("release/?query", search(
                 found("1967-1970", "The Beatles", "CD", 14, 14),
                 found("1967-1970", "The Beatles", "CD", 11, 17)));
-        assertEquals(RipCheck.EDITIONS_DIFFER, new RipCheck(http).check(album(d)).skipped);
+        // No count is shared, so the smallest (11) is the bar, and an 11-track folder passes.
+        assertTrue(new RipCheck(http).check(album(d)).ok());
     }
 
     @Test

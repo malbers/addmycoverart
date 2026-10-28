@@ -691,16 +691,17 @@ public class MainActivity extends Activity {
 
         String note = (cancelled ? "Stopped after " + ripResults.size() + " of " + planned + " albums. " : "")
                 + (issues.isEmpty()
-                    ? "No missing or short tracks found in the albums checked."
-                    : "These albums have fewer tracks than the release, or tracks much shorter than they should be. Nothing was changed.")
-                + (skipped.isEmpty() ? "" : " \"Not checked\" means there was nothing reliable to compare with.");
+                    ? "No missing, empty or cut-short tracks found in the albums checked."
+                    : "These albums have missing, empty or cut-short tracks. Nothing was changed.")
+                + (skipped.isEmpty() ? "" : " " + skipped.size() + (skipped.size() == 1 ? " album" : " albums")
+                    + " had nothing reliable to compare with; Save report lists them.");
         TextView n = Ui.text(this, note, 15, Ui.TEXT, false);
         n.setPadding(Ui.dp(this, 4), Ui.dp(this, 12), 0, Ui.dp(this, 8));
         body.addView(n);
 
+        // Only what needs acting on goes on screen; the not-checked list lives in the saved report.
         ItemAdapter adapter = new ItemAdapter(this);
         adapter.addAll(issues);
-        adapter.addAll(skipped);
         LinearLayout box = card();
         box.addView(list(adapter), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT));
         body.addView(box, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
