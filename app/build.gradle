@@ -1,0 +1,59 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.malbers.addmycoverart'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.malbers.addmycoverart'
+        minSdk 26
+        // 29 keeps legacy file access working on Android 11 streamers such as the Eversolo DMP-A6.
+        targetSdk 29
+        versionCode 12
+        versionName '1.0.2'
+        buildConfigField 'String', 'USER_AGENT', "\"AddMyCoverArt/${versionName} ( https://youtube.com/@malbers )\""
+    }
+
+    buildFeatures { buildConfig true }
+
+    // The release key lives outside the repo (made by scripts/new-signing-key.ps1). Without it, release
+    // builds fall back to the debug key, which is fine for testing and must never be shared.
+    def signingProps = new File(System.getProperty('user.home'), '.claude/.secrets/addmycoverart-signing.properties')
+    signingConfigs {
+        release {
+            if (signingProps.exists()) {
+                def p = new Properties()
+                signingProps.withInputStream { p.load(it) }
+                storeFile file(p.getProperty('storeFile'))
+                storePassword p.getProperty('storePassword')
+                keyAlias p.getProperty('keyAlias')
+                keyPassword p.getProperty('keyPassword')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingProps.exists() ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    // Sideloaded, never on Play: the Play target-SDK floor doesn't apply.
+    lint { disable 'ExpiredTargetSdkVersion' }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    testOptions { unitTests.returnDefaultValues = true }
+}
+
+dependencies {
+    // The platform's org.json is a stub on the JVM; tests need the real one.
+    testImplementation 'org.json:json:20231013'
+    testImplementation 'junit:junit:4.13.2'
+}

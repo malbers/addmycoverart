@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Muted disc shown where a cover will appear. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <path android:fillColor="#3A4256" android:pathData="M18,48 a30,30 0 1,0 60,0 a30,30 0 1,0 -60,0" />
+    <path android:fillColor="#4A5370" android:pathData="M48,48 L48,20 A28,28 0 0,1 72,34 Z" />
+    <path android:fillColor="#2A3142" android:pathData="M38,48 a10,10 0 1,0 20,0 a10,10 0 1,0 -20,0" />
+    <path android:fillColor="#3A4256" android:pathData="M44,48 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+</vector>
