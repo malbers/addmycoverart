@@ -199,7 +199,7 @@ public class RipCheckTest {
     }
 
     @Test
-    public void zeroBasedTagsAreShiftedAndReported() throws Exception {
+    public void zeroBasedTagsAreShiftedNotReported() throws Exception {
         // The Eversolo CD Ripper case: file "01" tagged 0, "02" tagged 1. Lengths must still line up.
         File d = new File(tmp.newFolder("Commodores"), "Anthology");
         assertTrue(d.mkdir());
@@ -211,7 +211,7 @@ public class RipCheckTest {
         ArtLookupTest.FakeHttp http = new ArtLookupTest.FakeHttp()
                 .on("release/?query", search(rel))
                 .on("release/ed-1", release(medium(1, 165_000L, 440_000L, 204_000L)));
-        assertEquals(List.of("02.Zoom is 0:14, expected 7:20", RipCheck.ZERO_BASED), new RipCheck(http).check(album(d)).problems);
+        assertEquals(List.of("02.Zoom is 0:14, expected 7:20"), new RipCheck(http).check(album(d)).problems);
     }
 
     @Test

@@ -87,7 +87,6 @@ public final class RipCheck {
     public static final String EDITIONS_DIFFER = "editions differ on MusicBrainz";
     public static final String NO_NAME = "no artist or album name";
     public static final String NETWORK = "network error";
-    public static final String ZERO_BASED = "track tags start at 0 instead of 1 (counted from 1 here)";
 
     private static final Pattern DISC = Pattern.compile("(?i)\\b(?:disc|disk|cd)\\s*(\\d+)");
 
@@ -128,7 +127,8 @@ public final class RipCheck {
 
         // Additions that hold whatever the verdict was compared with.
         List<String> problems = new ArrayList<>(r.problems);
-        if (zeroBased) problems.add(ZERO_BASED);
+        // Tags counting from 0 are a ripper artifact that changes nothing you hear (Michael, 2026-10-28):
+        // shifted above so lengths line up, never reported.
         String mismatch = tagNameMismatch(tracks);
         if (mismatch != null) problems.add(mismatch);
         if (r.problems.stream().anyMatch(p -> p.contains(" of ") || p.startsWith("missing"))) {
