@@ -614,8 +614,11 @@ public class MainActivity extends Activity {
         bar.setProgressTintList(ColorStateList.valueOf(Ui.ACCENT));
         bar.setProgressBackgroundTintList(ColorStateList.valueOf(Ui.CARD_HI));
         body.addView(bar, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 10)));
+        TextView nowBy = Ui.oneLine(this, "", 14, Ui.SUB, false);
+        nowBy.setPadding(0, Ui.dp(this, 10), 0, 0);
+        body.addView(nowBy);
         TextView now = Ui.oneLine(this, "", 18, Ui.TEXT, true);
-        now.setPadding(0, Ui.dp(this, 10), 0, Ui.dp(this, 10));
+        now.setPadding(0, 0, 0, Ui.dp(this, 10));
         body.addView(now);
         ItemAdapter found = new ItemAdapter(this);
         LinearLayout box = card();
@@ -639,6 +642,7 @@ public class MainActivity extends Activity {
                 int n = i;
                 runOnUiThread(() -> {
                     count.setText((n + 1) + " of " + all.size());
+                    nowBy.setText(parentNameOrEmpty(a));
                     now.setText(a.dir.getName());
                 });
                 RipCheck.Result r = check.check(a);
