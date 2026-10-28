@@ -24,13 +24,16 @@ Built for the Eversolo DMP-A6, where CD rips made before the CD Ripper fix often
 4. **Report.** What was added, what couldn't be found and why, and what was skipped.
 5. **See the covers.** Open your music library on the Eversolo. It usually picks up the new covers by itself; if some still show a blank disc, run a library rescan.
 
+**It can check your rips.** On the Scan Results screen, **Rip Error Check** (bottom left) compares each album with its release and lists missing tracks, empty tracks and tracks much shorter than they should be. It only reports; it never touches a file. **Save report** keeps the list as a text file in Download.
+
 **It keeps itself up to date.** Once a day it checks for a new version. When one is out, an **Update available** button appears; one tap downloads it, and you install it from the Files app. No computer needed. See [Updating later](#updating-later).
 
 ## What it never does
 
 - It never changes, renames, moves or deletes your music, tags or folders.
 - It never overwrites art. An album that already has `folder.jpg`, `album.jpg`, `cover.jpg` or `front.jpg` is skipped.
-- The only file it ever creates is `folder.jpg`, next to your tracks. Delete it and the album is back how it was.
+- In your music folders, the only file it ever creates is `folder.jpg`, next to your tracks. Delete it and the album is back how it was.
+- The only other files it writes go to the Eversolo's Download folder, and only when you ask: a saved rip report, or a downloaded update.
 - No Google Play, no Google services, no accounts, no analytics.
 
 ## Where the covers come from
@@ -44,7 +47,7 @@ The app contacts only `musicbrainz.org` and `coverartarchive.org` for covers, pa
 
 ## Download
 
-[**AddMyCoverArt-1.0.3.apk**](https://github.com/malbers/addmycoverart/releases/download/v1.0.3/AddMyCoverArt-1.0.3.apk) (from the [v1.0.3 release](https://github.com/malbers/addmycoverart/releases/tag/v1.0.3))
+[**AddMyCoverArt-1.0.4.apk**](https://github.com/malbers/addmycoverart/releases/download/v1.0.4/AddMyCoverArt-1.0.4.apk) (from the [v1.0.4 release](https://github.com/malbers/addmycoverart/releases/tag/v1.0.4))
 
 Download it to your laptop or desktop, not to the Eversolo. The next section shows how to get it from your computer onto the Eversolo.
 
@@ -64,7 +67,7 @@ Download it to your laptop or desktop, not to the Eversolo. The next section sho
 
    ![Eversolo web upload page with the Upload Apk button](docs/install/2-upload-page.jpg)
 
-3. **Send the app.** Click **Select APK File**, find `AddMyCoverArt-1.0.3.apk` where you downloaded it (usually your Downloads folder), and choose it. It uploads and installs on the Eversolo by itself.
+3. **Send the app.** Click **Select APK File**, find `AddMyCoverArt-1.0.4.apk` where you downloaded it (usually your Downloads folder), and choose it. It uploads and installs on the Eversolo by itself.
 
    ![Select APK File](docs/install/3-select-apk.jpg)
 
@@ -81,7 +84,7 @@ Use this if the upload page doesn't work for you, or if you already copy music t
    - **Windows:** open File Explorer, click in the address bar at the top, type the `\\` address and press Enter.
    - **Mac:** in Finder, choose **Go > Connect to Server** (or press Cmd+K), type the `smb://` address and click Connect. If it asks how to connect, choose **Guest**.
 3. **Copy the APK** into any folder on the Eversolo, for example the `Download` folder on its SSD. Drag it in like any other file.
-4. **Install it from the Eversolo.** On the Eversolo, open the built-in **Files** app, go to the folder you used, and tap `AddMyCoverArt-1.0.3.apk`.
+4. **Install it from the Eversolo.** On the Eversolo, open the built-in **Files** app, go to the folder you used, and tap `AddMyCoverArt-1.0.4.apk`.
 
    ![The APK in the Eversolo Files app](docs/install/smb-1-files-app.jpg)
 
@@ -101,7 +104,7 @@ The first time you open it, the app asks for permission to read your music folde
 
    ![Permission screen](docs/install/first-1-permission.jpg)
 
-2. **Turn on the switch** next to **Allow access to manage all files**. Android's wording sounds alarming because this is a broad permission. AddMyCoverArt uses it only to read your folders and add `folder.jpg` files. Then press the back arrow (top left) to return to the app.
+2. **Turn on the switch** next to **Allow access to manage all files**. Android's wording sounds alarming because this is a broad permission. AddMyCoverArt uses it only to read your folders, add `folder.jpg` files, and save a rip report or an update to Download when you ask. Then press the back arrow (top left) to return to the app.
 
    ![All files access](docs/install/first-2-all-files.jpg)
 
@@ -138,6 +141,11 @@ An APK with a different signer did not come from here.
 ## What's new
 
 Newest first. Every version is also on the [releases page](https://github.com/malbers/addmycoverart/releases).
+
+**1.0.4** (28 October 2026)
+- **New: Rip Error Check.** A separate button at the bottom left of Scan Results. For each album it compares your folder with the release on MusicBrainz (or with the track numbers and totals in the tags) and lists missing tracks, empty tracks, and tracks much shorter than the release. It only reports; it never changes, renames or deletes anything. An album it can't match with confidence is counted as "Not checked", never guessed.
+- **Save report** writes the full list, including what wasn't checked, as a text file to the Eversolo's Download folder, so you can print it and work through it.
+- On my own library it checked 112 albums and found 6 real problems: missing tracks, a rip that failed partway through, and empty files. No false alarms.
 
 **1.0.3** (27 October 2026)
 - **The app now checks for updates.** Once a day it looks for a newer version. When one is out, an **Update available** button appears at the bottom left of the folder screen. Tap it and the new version downloads to the Eversolo's Download folder; install it from the Files app. No computer or browser needed.
