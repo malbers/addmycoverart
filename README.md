@@ -135,6 +135,14 @@ Every official release is signed with the same key. If you want to check a copy 
 
 An APK with a different signer did not come from here.
 
+## What's new
+
+Newest first. Every version is also on the [releases page](https://github.com/malbers/addmycoverart/releases).
+
+**1.0.3** (27 October 2026)
+- **The app now checks for updates.** Once a day it looks for a newer version. When one is out, an **Update available** button appears at the bottom left of the folder screen. Tap it and the new version downloads to the Eversolo's Download folder; install it from the Files app. No computer or browser needed.
+- If you're on 1.0.2 or earlier, install 1.0.3 by hand once (see [Install](#install)). After that, updates come to you.
+
 ## Tested on
 
 Eversolo DMP-A6 (Gen 1), firmware 1.6.15, Android 11, with CD Ripper FLAC rips and an older MP3 library. It should work on other Android-based streamers, but that is untested.
