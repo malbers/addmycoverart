@@ -33,9 +33,15 @@ import org.json.JSONObject;
  * Anything else is "not checked" rather than guessed at, for the same reason a wrong cover is worse than none.
  */
 public final class RipCheck {
-    /** A track is short when it falls this far below the release's length (whichever is larger). */
-    static final long SHORT_MS = 2000;
-    static final double SHORT_FRACTION = 0.03;
+    /**
+     * A track is short when it falls this far below the release's length (whichever is larger). Loose on
+     * purpose: MusicBrainz lengths are often a few seconds off (1:35 vs 1:40 on a good rip), while a failed
+     * rip is off by far more.
+     */
+    static final long SHORT_MS = 10_000;
+    static final double SHORT_FRACTION = 0.10;
+    /** Share of matching editions that must agree on a disc's track count for a search result to be used. */
+    static final double MAJORITY = 2.0 / 3;
     static final int MAX_LISTED = 6;
     static final int MIN_SCORE = 90;
 
@@ -94,21 +100,33 @@ public final class RipCheck {
         }
         if (disc == null) disc = discFromName(a.dir.getName());
 
-        try {
-            if (mbid != null) return byId(a, tracks, mbid, disc);
-
-            // The tags alone: a stated total, or numbers with holes in them.
-            Integer total = statedTotal(tracks);
-            if (total != null) return new Result(a, compare(tracks, total, new HashMap<>()), null, BY_TAGS);
-            List<String> gaps = gaps(tracks);
-            if (!gaps.isEmpty()) return new Result(a, gaps, null, BY_TAGS);
-
-            return bySearch(a, tracks, files[0], disc);
-        } catch (IOException e) {
-            return skip(a, NETWORK);
-        } catch (JSONException e) {
-            return skip(a, NOT_ON_MB);
+        if (mbid != null) {
+            try {
+                return byId(a, tracks, mbid, disc);
+            } catch (IOException e) {
+                return skip(a, NETWORK);
+            } catch (JSONException e) {
+                return skip(a, NOT_ON_MB);
+            }
         }
+
+        // A stated total in the tags settles the count without the network.
+        Integer total = statedTotal(tracks);
+        if (total != null) return new Result(a, compare(tracks, total, new HashMap<>()), null, BY_TAGS);
+
+        // Gaps in the numbers only see holes below the highest track present, so the search still runs
+        // to learn the real count; the gaps stand on their own when it can't say.
+        List<String> gaps = gaps(tracks);
+        Result searched;
+        try {
+            searched = bySearch(a, tracks, files[0], disc);
+        } catch (IOException e) {
+            searched = skip(a, NETWORK);
+        } catch (JSONException e) {
+            searched = skip(a, NO_INFO);
+        }
+        if (searched.skipped != null && !gaps.isEmpty()) return new Result(a, gaps, null, BY_TAGS);
+        return searched;
     }
 
     // ---- 1. MusicBrainz ID ----
@@ -170,7 +188,7 @@ public final class RipCheck {
         if (res.code >= 500) return skip(a, NETWORK);
         if (res.code != 200) return skip(a, NO_INFO);
         JSONArray releases = new JSONObject(new String(res.body, StandardCharsets.UTF_8)).optJSONArray("releases");
-        Integer expected = agreedCount(releases, artist, album, disc);
+        Integer expected = agreedCount(releases, artist, album, disc, tracks.size());
         if (expected == null) return skip(a, NO_INFO);
         if (expected < 0) return skip(a, expected == WHICH ? WHICH_DISC : EDITIONS_DIFFER);
         return new Result(a, compare(tracks, expected, new HashMap<>()), null, BY_SEARCH);
@@ -180,10 +198,12 @@ public final class RipCheck {
     static final int WHICH = -2;
 
     /**
-     * The disc's track count when every matching CD edition agrees. Null when nothing matches;
-     * {@link #DIFFER} when editions disagree; {@link #WHICH} when the disc can't be told.
+     * The disc's track count that a clear majority of matching CD editions share. Null when nothing
+     * matches; {@link #DIFFER} when editions disagree; {@link #WHICH} when the disc can't be told.
+     * {@code folderTracks} only decides whether a disc-less folder holds a whole multi-disc set; it never
+     * picks an edition.
      */
-    static Integer agreedCount(JSONArray releases, String artist, String album, Integer disc) {
+    static Integer agreedCount(JSONArray releases, String artist, String album, Integer disc, int folderTracks) {
         if (releases == null) return null;
         String wantTitle = Text.norm(ArtLookup.searchTitle(album));
         String wantArtist = Text.norm(artist);
@@ -202,22 +222,54 @@ public final class RipCheck {
         List<JSONArray> pool = cd.isEmpty() ? other : cd;
         if (pool.isEmpty()) return null;
 
-        Integer agreed = null;
-        for (JSONArray media : pool) {
-            JSONObject m;
-            if (disc == null) {
-                if (media.length() != 1) return WHICH;
-                m = media.optJSONObject(0);
-            } else {
+        List<Integer> counts = new ArrayList<>();
+        if (disc != null) {
+            for (JSONArray media : pool) {
                 if (disc > media.length()) continue; // a single-disc edition of a two-disc set: not comparable
-                m = media.optJSONObject(disc - 1);
+                int n = trackCount(media.optJSONObject(disc - 1));
+                if (n > 0) counts.add(n);
             }
-            int n = m == null ? 0 : m.optInt("track-count");
-            if (n <= 0) continue;
-            if (agreed == null) agreed = n;
-            else if (agreed != n) return DIFFER;
+        } else {
+            // No disc number: single-disc editions describe this folder. Only when every edition is a set
+            // can the folder be the whole set, and then only if it holds more than any one disc.
+            int biggestDisc = 0;
+            List<Integer> sets = new ArrayList<>();
+            for (JSONArray media : pool) {
+                if (media.length() == 1) {
+                    int n = trackCount(media.optJSONObject(0));
+                    if (n > 0) counts.add(n);
+                } else {
+                    int sum = 0;
+                    for (int i = 0; i < media.length(); i++) {
+                        int n = trackCount(media.optJSONObject(i));
+                        biggestDisc = Math.max(biggestDisc, n);
+                        sum += n;
+                    }
+                    if (sum > 0) sets.add(sum);
+                }
+            }
+            if (counts.isEmpty()) {
+                if (sets.isEmpty()) return null;
+                if (folderTracks <= biggestDisc) return WHICH;
+                counts = sets;
+            }
         }
-        return agreed;
+        if (counts.isEmpty()) return null;
+        return majority(counts);
+    }
+
+    /** The value at least {@link #MAJORITY} of the list shares, else {@link #DIFFER}. */
+    static int majority(List<Integer> counts) {
+        Map<Integer, Integer> votes = new HashMap<>();
+        for (int n : counts) votes.merge(n, 1, Integer::sum);
+        for (Map.Entry<Integer, Integer> e : votes.entrySet()) {
+            if (e.getValue() >= MAJORITY * counts.size()) return e.getKey();
+        }
+        return DIFFER;
+    }
+
+    private static int trackCount(JSONObject medium) {
+        return medium == null ? 0 : medium.optInt("track-count");
     }
 
     private static boolean allCd(JSONArray media) {

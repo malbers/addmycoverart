@@ -147,7 +147,7 @@ public class RipCheckTest {
     @Test
     public void smallDifferenceIsNotShort() throws Exception {
         JSONObject m = new JSONObject(medium(1, 300_000L));
-        // 3% of 5:00 is 9 s; 8 s short is within it.
+        // 10% of 5:00 is 30 s; 8 s short is within it.
         assertTrue(RipCheck.compare(List.of(new TrackInfo(1, null, null, 292_000L, "x")), m).isEmpty());
     }
 
@@ -207,14 +207,68 @@ public class RipCheckTest {
     }
 
     @Test
-    public void gapsFlaggedWithoutNetwork() throws Exception {
+    public void gapsStandWhenSearchCantSay() throws Exception {
         File d = albumDir("Gaps");
         tagged(d, 1, "TRACKNUMBER=1");
         tagged(d, 2, "TRACKNUMBER=2");
         tagged(d, 5, "TRACKNUMBER=5");
-        ArtLookupTest.FakeHttp http = new ArtLookupTest.FakeHttp();
-        assertEquals(List.of("missing tracks 3, 4"), new RipCheck(http).check(album(d)).problems);
-        assertTrue(http.asked.isEmpty());
+        RipCheck.Result r = new RipCheck(new ArtLookupTest.FakeHttp()).check(album(d));
+        assertEquals(RipCheck.BY_TAGS, r.basis);
+        assertEquals(List.of("missing tracks 3, 4"), r.problems);
+    }
+
+    @Test
+    public void gapsPlusSearchFindTheMissingLastTrack() throws Exception {
+        // The 1967-1970 Disc 1 case: 1-10 and 13 present; the gaps alone can't see 14.
+        File d = new File(tmp.newFolder("The Beatles"), "1967-1970 (Disc 1)");
+        assertTrue(d.mkdir());
+        for (int n = 1; n <= 10; n++) tagged(d, n, "TRACKNUMBER=" + n);
+        tagged(d, 13, "TRACKNUMBER=13");
+        ArtLookupTest.FakeHttp http = new ArtLookupTest.FakeHttp().on("release/?query", search(
+                found("1967-1970", "The Beatles", "CD", 14, 14)));
+        RipCheck.Result r = new RipCheck(http).check(album(d));
+        assertEquals(RipCheck.BY_SEARCH, r.basis);
+        assertEquals(List.of("11 of 14 tracks, missing 11, 12, 14"), r.problems);
+    }
+
+    @Test
+    public void majorityOfEditionsIsEnough() {
+        assertEquals(14, RipCheck.majority(List.of(14, 14, 17)));
+        assertEquals(RipCheck.DIFFER, RipCheck.majority(List.of(14, 17)));
+        assertEquals(14, RipCheck.majority(List.of(14)));
+    }
+
+    @Test
+    public void oddDeluxeEditionDoesNotBlock() throws Exception {
+        File d = new File(tmp.newFolder("The Beatles"), "Abbey Road");
+        assertTrue(d.mkdir());
+        for (int n = 1; n <= 17; n++) tagged(d, n, "TRACKNUMBER=" + n);
+        ArtLookupTest.FakeHttp http = new ArtLookupTest.FakeHttp().on("release/?query", search(
+                found("Abbey Road", "The Beatles", "CD", 17),
+                found("Abbey Road", "The Beatles", "CD", 17),
+                found("Abbey Road", "The Beatles", "CD", 23),
+                // a three-disc anniversary box: ignored for a folder with no disc number
+                found("Abbey Road", "The Beatles", "CD", 17, 23, 13)));
+        RipCheck.Result r = new RipCheck(http).check(album(d));
+        assertNull(r.skipped);
+        assertTrue(r.problems.toString(), r.ok());
+    }
+
+    @Test
+    public void wholeSetInOneFolder() throws Exception {
+        File d = new File(tmp.newFolder("The Beatles"), "Live at the BBC");
+        assertTrue(d.mkdir());
+        for (int n = 1; n <= 15; n++) tagged(d, n, "TRACKNUMBER=" + n);
+        ArtLookupTest.FakeHttp http = new ArtLookupTest.FakeHttp().on("release/?query", search(
+                found("Live at the BBC", "The Beatles", "CD", 10, 10)));
+        assertEquals(List.of("15 of 20 tracks, missing 16, 17, 18, 19, 20"), new RipCheck(http).check(album(d)).problems);
+    }
+
+    @Test
+    public void fiveSecondsShortOnAShortTrackIsFine() throws Exception {
+        // Blood, Sweat & Tears track 10: 1:35 on the rip, 1:40 on MusicBrainz, a good rip.
+        JSONObject m = new JSONObject(medium(1, 100_000L));
+        assertTrue(RipCheck.compare(List.of(new TrackInfo(1, null, null, 95_000L, "x")), m).isEmpty());
     }
 
     // ---- 3. search ----
