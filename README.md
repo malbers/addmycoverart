@@ -41,6 +41,12 @@ From the *Eversolo DMP-A6 Users & Friends* group on Facebook:
 
 **It keeps itself up to date.** Once a day it checks for a new version. When one is out, an **Update available** button appears; one tap downloads it, and you install it from the Files app. No computer needed. See [Updating later](#updating-later).
 
+### 🔧 Also from me: FixMyRips
+
+Rip Error Check tells you what's wrong. **[FixMyRips](https://github.com/malbers/fixmyrips)** goes further: it fixes the tags the Eversolo CD Ripper leaves broken (track numbers that start at 0, missing track totals, missing disc numbers), shows every change before making it, and lets you undo any fix. It also lists the discs that need ripping again.
+
+And the bonus: scan a CD's barcode with your phone, standing at your shelf, and it tells you whether that disc is already ripped. Same install as this one. Fill in the covers with AddMyCoverArt, fix the tags with FixMyRips.
+
 ## What it never does
 
 - It never changes, renames, moves or deletes your music, tags or folders.
@@ -193,3 +199,5 @@ Copyright 2026 Michael Albers ([@malbers](https://www.youtube.com/@malbers)). Li
 You're welcome to use it, modify it, build on it and send improvements. If you redistribute it or something built from it, keep the [NOTICE](NOTICE) file with it so the credit travels along. The licence doesn't cover the name: please don't publish a modified version as "AddMyCoverArt" or as coming from me.
 
 Contributions are welcome. Anything you submit to this repository is accepted under the same Apache 2.0 licence.
+
+Also from me: [FixMyRips](https://github.com/malbers/fixmyrips) fixes the tags on the same Eversolo rips, and tells you from your phone whether a CD is already ripped.
