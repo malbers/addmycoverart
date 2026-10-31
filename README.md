@@ -1,6 +1,6 @@
 # AddMyCoverArt
 
-Fills in missing album art on music already ripped to an Eversolo streamer. Pick a folder, see which albums have no cover, tap one button, and watch the covers arrive.
+Fills in missing album art on music already ripped to an Eversolo streamer. Pick a folder, see which albums have no cover, tap one button, and watch the covers arrive. It can also check your rips for missing, empty or cut-short tracks.
 
 Built for the Eversolo DMP-A6, where CD rips made before the CD Ripper fix often have no artwork. It runs on the device itself, so there is no PC, no network share and no tagging software involved.
 
@@ -20,7 +20,7 @@ Built for the Eversolo DMP-A6, where CD rips made before the CD Ripper fix often
 
 1. **Pick a folder** on the internal storage or an attached drive, e.g. `EverSoloMusic`.
 2. **Scan.** Every folder with audio files counts as an album. You get a count of albums, how many already have art, and a list of the ones missing it.
-3. **Fetch Album Art.** For each album it shows the cover as it is found, saves it, and moves to the next.
+3. **Fetch Album Art.** For each album it shows the cover as it is found, saves it, and moves to the next. It looks inside your own music files first, then at [MusicBrainz](https://musicbrainz.org) and the [Cover Art Archive](https://coverartarchive.org). See [Where the covers come from](#where-the-covers-come-from).
 4. **Report.** What was added, what couldn't be found and why, and what was skipped.
 5. **See the covers.** Open your music library on the Eversolo. It usually picks up the new covers by itself; if some still show a blank disc, run a library rescan.
 
@@ -38,8 +38,8 @@ Built for the Eversolo DMP-A6, where CD rips made before the CD Ripper fix often
 
 ## Where the covers come from
 
-1. **Your own files first.** If the tracks already carry a cover inside them, that exact image is copied out to `folder.jpg`. No internet needed.
-2. **MusicBrainz and the Cover Art Archive.** If the album has a MusicBrainz ID (the Eversolo CD Ripper writes one), the matching cover is used. Otherwise it searches by artist and album, using the tags or, failing that, the folder names.
+1. **Your own files first.** Many music files carry their album cover inside them. When your tracks do, the app copies that exact image out to `folder.jpg`: your own art, no internet and no guessing. Only albums with no cover inside the files go to step 2.
+2. **MusicBrainz and the Cover Art Archive.** [MusicBrainz](https://musicbrainz.org) is a free, community-run database of music releases: which albums exist, which tracks are on them, in which editions. The [Cover Art Archive](https://coverartarchive.org) is its companion library of album cover images. If the album has a MusicBrainz ID (the Eversolo CD Ripper writes one), the matching cover is used. Otherwise it searches by artist and album, using the tags or, failing that, the folder names.
 
 It only uses a match it is confident about: same title, same artist, closest track count. **A skipped album is better than the wrong cover.** Mix CDs, home recordings and obscure compilations will show up as "Couldn't find", which is expected.
 
@@ -51,7 +51,7 @@ The app contacts only `musicbrainz.org` and `coverartarchive.org` for covers, pa
 
 Download it to your laptop or desktop, not to the Eversolo. The next section shows how to get it from your computer onto the Eversolo.
 
-## Install
+## How to Install
 
 **What you're doing:** an `.apk` file is an Android app. The Eversolo runs Android underneath, so it can install apps that aren't in its app store, a process usually called "sideloading". There are two ways to get the file onto the Eversolo. Both take a couple of minutes, and you only do this once.
 
@@ -149,7 +149,7 @@ Newest first. Every version is also on the [releases page](https://github.com/ma
 
 **1.0.3** (27 October 2026)
 - **The app now checks for updates.** Once a day it looks for a newer version. When one is out, an **Update available** button appears at the bottom left of the folder screen. Tap it and the new version downloads to the Eversolo's Download folder; install it from the Files app. No computer or browser needed.
-- If you're on 1.0.2 or earlier, install 1.0.3 by hand once (see [Install](#install)). After that, updates come to you.
+- If you're on 1.0.2 or earlier, install 1.0.3 by hand once (see [How to Install](#how-to-install)). After that, updates come to you.
 
 ## Tested on
 
