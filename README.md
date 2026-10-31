@@ -155,6 +155,10 @@ Newest first. Every version is also on the [releases page](https://github.com/ma
 
 Eversolo DMP-A6 (Gen 1), firmware 1.6.15, Android 11, with CD Ripper FLAC rips and an older MP3 library. It should work on other Android-based streamers, but that is untested.
 
+## Feedback
+
+Found a bug, have an idea, or got a question? **[Tell me here](https://docs.google.com/forms/d/e/1FAIpQLSdjVVL_qZD5tC7SnQKodsrbxz4l9FdBz-dS77bGRA5S5a21bQ/viewform)**. It's a short form, no account needed, and I read every one. If you're on GitHub, you can also [open an issue](https://github.com/malbers/addmycoverart/issues).
+
 ## Building from source
 
 Java, plain Android SDK, no third-party libraries. JDK 17, then:
