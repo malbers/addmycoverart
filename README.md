@@ -16,6 +16,19 @@ Built for the Eversolo DMP-A6, where CD rips made before the CD Ripper fix often
 
 ▶ [Short screen recording](docs/screenshots/demo.mp4)
 
+## What people are saying
+
+From the *Eversolo DMP-A6 Users & Friends* group on Facebook:
+
+> "Just installed it. It’s found 500 so far first scan. Thank you 🙏"<br>
+> **Ian J.**
+
+> "its working for me so far. THANK YOU FOR POSTING THIS!! This saved me so much frustration and time!"<br>
+> **Weston T.**
+
+> "It was easy and it works."<br>
+> **Matthew A.**
+
 ## What it does
 
 1. **Pick a folder** on the internal storage or an attached drive, e.g. `EverSoloMusic`.
