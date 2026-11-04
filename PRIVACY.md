@@ -14,7 +14,7 @@ AddMyCoverArt does not collect, store or share any personal information. It has 
 
 ## What the app sends over the internet
 
-- **MusicBrainz** (`musicbrainz.org`) and the **Cover Art Archive** (`coverartarchive.org`): to find a cover, the app sends the album's MusicBrainz ID if it has one, or otherwise the artist name, album title and track count taken from your tags or folder names. These services are run by the MetaBrainz Foundation; see their privacy policy at https://metabrainz.org/privacy.
+- **MusicBrainz** (`musicbrainz.org`) and the **Cover Art Archive** (`coverartarchive.org`): to find a cover, the app sends the album's MusicBrainz ID if it has one, or otherwise the artist name, album title and track count taken from your tags or folder names. If that finds no confident match, it also sends up to five track titles from the album's tags, to look for the same album under a different title. These services are run by the MetaBrainz Foundation; see their privacy policy at https://metabrainz.org/privacy.
 - **GitHub** (`api.github.com`): at most once a day, the app checks whether a newer version has been released. If you tap **Update available**, it downloads the new APK from GitHub. GitHub's privacy statement: https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement.
 
 Like any internet request, these services can see your device's IP address. The app sends no other information about you, your device or your library, and it does not send any identifier of its own.
