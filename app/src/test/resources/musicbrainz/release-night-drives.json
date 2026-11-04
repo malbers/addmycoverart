@@ -1,0 +1,484 @@
+{
+  "id": "d02697dd-6684-5623-aacc-05c80f4a4ebf",
+  "title": "Night Drives: The Collection",
+  "status": "Official",
+  "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+  "quality": "normal",
+  "packaging": "Jewel Case",
+  "date": "2004-10-11",
+  "country": "GB",
+  "barcode": "5099951234567",
+  "disambiguation": "",
+  "text-representation": {
+    "language": "eng",
+    "script": "Latn"
+  },
+  "artist-credit": [
+    {
+      "name": "The Lanterns",
+      "joinphrase": "",
+      "artist": {
+        "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+        "name": "The Lanterns",
+        "sort-name": "Lanterns, The",
+        "type": "Group",
+        "disambiguation": "",
+        "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+      }
+    }
+  ],
+  "release-group": {
+    "id": "b890c800-e45f-58ab-bece-42565d591fd2",
+    "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+    "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+    "title": "Night Drives: The Collection",
+    "primary-type": "Album",
+    "secondary-types": [
+      "Compilation"
+    ],
+    "secondary-type-ids": [
+      "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+    ],
+    "disambiguation": "",
+    "first-release-date": "2004-10-11"
+  },
+  "cover-art-archive": {
+    "artwork": true,
+    "count": 2,
+    "front": true,
+    "back": true,
+    "darkened": false
+  },
+  "media": [
+    {
+      "position": 1,
+      "format": "CD",
+      "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+      "title": "",
+      "track-count": 12,
+      "track-offset": 0,
+      "tracks": [
+        {
+          "id": "b86365d6-6b91-5542-aa27-f103aca0f9b7",
+          "position": 1,
+          "number": "1",
+          "title": "Harbour Lights",
+          "length": 215000,
+          "artist-credit": [
+            {
+              "name": "The Lanterns",
+              "artist": {
+                "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                "name": "The Lanterns",
+                "sort-name": "Lanterns, The"
+              }
+            }
+          ],
+          "recording": {
+            "id": "bcc6edd7-f56a-57c3-80bb-8f5dfbf06095",
+            "title": "Harbour Lights",
+            "length": 215000,
+            "video": false,
+            "disambiguation": "",
+            "first-release-date": "1996-01-29",
+            "artist-credit": [
+              {
+                "name": "The Lanterns",
+                "artist": {
+                  "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                  "name": "The Lanterns",
+                  "sort-name": "Lanterns, The"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "e85b0ac0-d835-5a5c-9868-a8130ba5f0ae",
+          "position": 2,
+          "number": "2",
+          "title": "Paper Moon Motel",
+          "length": 198000,
+          "artist-credit": [
+            {
+              "name": "The Lanterns",
+              "artist": {
+                "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                "name": "The Lanterns",
+                "sort-name": "Lanterns, The"
+              }
+            }
+          ],
+          "recording": {
+            "id": "e53fc943-664f-5dc5-b1d9-b089fb3890c4",
+            "title": "Paper Moon Motel",
+            "length": 198000,
+            "video": false,
+            "disambiguation": "",
+            "first-release-date": "1996-01-29",
+            "artist-credit": [
+              {
+                "name": "The Lanterns",
+                "artist": {
+                  "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                  "name": "The Lanterns",
+                  "sort-name": "Lanterns, The"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "01e423b5-a622-55aa-8547-7b61a4701a3a",
+          "position": 3,
+          "number": "3",
+          "title": "Static on the Radio",
+          "length": 241000,
+          "artist-credit": [
+            {
+              "name": "The Lanterns",
+              "artist": {
+                "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                "name": "The Lanterns",
+                "sort-name": "Lanterns, The"
+              }
+            }
+          ],
+          "recording": {
+            "id": "699469f6-bd75-5518-a477-824edcac68f7",
+            "title": "Static on the Radio",
+            "length": 241000,
+            "video": false,
+            "disambiguation": "",
+            "first-release-date": "1996-01-29",
+            "artist-credit": [
+              {
+                "name": "The Lanterns",
+                "artist": {
+                  "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                  "name": "The Lanterns",
+                  "sort-name": "Lanterns, The"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "7900cc3c-9303-51e5-a34e-6d7d3c862798",
+          "position": 4,
+          "number": "4",
+          "title": "Glass Houses",
+          "length": 187000,
+          "artist-credit": [
+            {
+              "name": "The Lanterns",
+              "artist": {
+                "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                "name": "The Lanterns",
+                "sort-name": "Lanterns, The"
+              }
+            }
+          ],
+          "recording": {
+            "id": "7e163d07-c5e6-51d1-99ff-c19be9e12e29",
+            "title": "Glass Houses",
+            "length": 187000,
+            "video": false,
+            "disambiguation": "",
+            "first-release-date": "1996-01-29",
+            "artist-credit": [
+              {
+                "name": "The Lanterns",
+                "artist": {
+                  "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                  "name": "The Lanterns",
+                  "sort-name": "Lanterns, The"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "3f759c8e-67ae-5344-8226-be059491f708",
+          "position": 5,
+          "number": "5",
+          "title": "Northbound",
+          "length": 263000,
+          "artist-credit": [
+            {
+              "name": "The Lanterns",
+              "artist": {
+                "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                "name": "The Lanterns",
+                "sort-name": "Lanterns, The"
+              }
+            }
+          ],
+          "recording": {
+            "id": "6ee00dd3-a307-5594-8d7d-980f37627fa5",
+            "title": "Northbound",
+            "length": 263000,
+            "video": false,
+            "disambiguation": "",
+            "first-release-date": "1996-01-29",
+            "artist-credit": [
+              {
+                "name": "The Lanterns",
+                "artist": {
+                  "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                  "name": "The Lanterns",
+                  "sort-name": "Lanterns, The"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "f439969b-7f2c-5fd0-882d-1d5c2238c7a6",
+          "position": 6,
+          "number": "6",
+          "title": "Kerosene Heart",
+          "length": 229000,
+          "artist-credit": [
+            {
+              "name": "The Lanterns",
+              "artist": {
+                "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                "name": "The Lanterns",
+                "sort-name": "Lanterns, The"
+              }
+            }
+          ],
+          "recording": {
+            "id": "457c5ef5-2a7d-5c92-a2ea-3b2d754b2672",
+            "title": "Kerosene Heart",
+            "length": 229000,
+            "video": false,
+            "disambiguation": "",
+            "first-release-date": "1996-01-29",
+            "artist-credit": [
+              {
+                "name": "The Lanterns",
+                "artist": {
+                  "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                  "name": "The Lanterns",
+                  "sort-name": "Lanterns, The"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "81c0343e-f7e5-5609-a93e-7bc8e8b913f3",
+          "position": 7,
+          "number": "7",
+          "title": "Slow Fade",
+          "length": 254000,
+          "artist-credit": [
+            {
+              "name": "The Lanterns",
+              "artist": {
+                "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                "name": "The Lanterns",
+                "sort-name": "Lanterns, The"
+              }
+            }
+          ],
+          "recording": {
+            "id": "1d223eef-aa6b-5b44-aaed-58862c78e408",
+            "title": "Slow Fade",
+            "length": 254000,
+            "video": false,
+            "disambiguation": "",
+            "first-release-date": "1996-01-29",
+            "artist-credit": [
+              {
+                "name": "The Lanterns",
+                "artist": {
+                  "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                  "name": "The Lanterns",
+                  "sort-name": "Lanterns, The"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "b4a6656c-3d19-5b9c-8b55-4195bf26038e",
+          "position": 8,
+          "number": "8",
+          "title": "The Long Way Round",
+          "length": 201000,
+          "artist-credit": [
+            {
+              "name": "The Lanterns",
+              "artist": {
+                "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                "name": "The Lanterns",
+                "sort-name": "Lanterns, The"
+              }
+            }
+          ],
+          "recording": {
+            "id": "9f5b51d0-7054-593f-aafc-c42467bb0387",
+            "title": "The Long Way Round",
+            "length": 201000,
+            "video": false,
+            "disambiguation": "",
+            "first-release-date": "1996-01-29",
+            "artist-credit": [
+              {
+                "name": "The Lanterns",
+                "artist": {
+                  "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                  "name": "The Lanterns",
+                  "sort-name": "Lanterns, The"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "4ef6252a-43cc-5ccf-9a1a-39cc40c78ee2",
+          "position": 9,
+          "number": "9",
+          "title": "Undertow",
+          "length": 276000,
+          "artist-credit": [
+            {
+              "name": "The Lanterns",
+              "artist": {
+                "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                "name": "The Lanterns",
+                "sort-name": "Lanterns, The"
+              }
+            }
+          ],
+          "recording": {
+            "id": "4d97b5f9-1ab2-555f-9777-81f8cc4dc09a",
+            "title": "Undertow",
+            "length": 276000,
+            "video": false,
+            "disambiguation": "",
+            "first-release-date": "1996-01-29",
+            "artist-credit": [
+              {
+                "name": "The Lanterns",
+                "artist": {
+                  "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                  "name": "The Lanterns",
+                  "sort-name": "Lanterns, The"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "51e7852f-81f0-59ad-a258-f99c8105dc99",
+          "position": 10,
+          "number": "10",
+          "title": "Saltwater",
+          "length": 193000,
+          "artist-credit": [
+            {
+              "name": "The Lanterns",
+              "artist": {
+                "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                "name": "The Lanterns",
+                "sort-name": "Lanterns, The"
+              }
+            }
+          ],
+          "recording": {
+            "id": "ff03d937-f47b-5bde-ba87-d6b639daa0c5",
+            "title": "Saltwater",
+            "length": 193000,
+            "video": false,
+            "disambiguation": "",
+            "first-release-date": "1996-01-29",
+            "artist-credit": [
+              {
+                "name": "The Lanterns",
+                "artist": {
+                  "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                  "name": "The Lanterns",
+                  "sort-name": "Lanterns, The"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "cc424059-7c82-55f6-b17f-4bcc46db84a0",
+          "position": 11,
+          "number": "11",
+          "title": "Satellite Town",
+          "length": 238000,
+          "artist-credit": [
+            {
+              "name": "The Lanterns",
+              "artist": {
+                "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                "name": "The Lanterns",
+                "sort-name": "Lanterns, The"
+              }
+            }
+          ],
+          "recording": {
+            "id": "924453ea-42ac-5197-b73a-36acccb460a7",
+            "title": "Satellite Town",
+            "length": 238000,
+            "video": false,
+            "disambiguation": "",
+            "first-release-date": "1996-01-29",
+            "artist-credit": [
+              {
+                "name": "The Lanterns",
+                "artist": {
+                  "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                  "name": "The Lanterns",
+                  "sort-name": "Lanterns, The"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "baa9fc12-af6a-51a2-af27-4398c422f3a9",
+          "position": 12,
+          "number": "12",
+          "title": "Last Train Home",
+          "length": 301000,
+          "artist-credit": [
+            {
+              "name": "The Lanterns",
+              "artist": {
+                "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                "name": "The Lanterns",
+                "sort-name": "Lanterns, The"
+              }
+            }
+          ],
+          "recording": {
+            "id": "2a7e9092-5337-5265-9102-2f0ad4355edb",
+            "title": "Last Train Home",
+            "length": 301000,
+            "video": false,
+            "disambiguation": "",
+            "first-release-date": "1996-01-29",
+            "artist-credit": [
+              {
+                "name": "The Lanterns",
+                "artist": {
+                  "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+                  "name": "The Lanterns",
+                  "sort-name": "Lanterns, The"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
