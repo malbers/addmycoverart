@@ -25,7 +25,7 @@ public final class TagReader {
         return b == null ? Tags.EMPTY : b.build();
     }
 
-    /** Track and disc numbers, FLAC playing time and the release ID, for the rip check. Never throws. */
+    /** Track and disc numbers, title, FLAC playing time and the release ID, for the rip check and track-list matching. Never throws. */
     public static TrackInfo readTrack(File f) {
         Builder b = parse(f);
         return b == null ? TrackInfo.EMPTY : b.track();
@@ -252,6 +252,7 @@ public final class TagReader {
                 case "TPE2": b.put("ALBUMARTIST", text(tag, p, len)); break;
                 case "TRCK": b.put("TRACKNUMBER", text(tag, p, len)); break;
                 case "TPOS": b.put("DISCNUMBER", text(tag, p, len)); break;
+                case "TIT2": b.put("TITLE", text(tag, p, len)); break;
                 case "APIC": if (apicDataStart(tag, p, len) >= 0) b.picture = true; break;
                 case "TXXX": {
                     String[] kv = text(tag, p, len).split("\u0000", 2);
@@ -310,7 +311,7 @@ public final class TagReader {
     }
 
     private static final class Builder {
-        String album, artist, albumArtist, mbid;
+        String album, artist, albumArtist, mbid, title;
         boolean picture;
         Integer track, trackTotal, disc;
         Long durationMs;
@@ -323,6 +324,7 @@ public final class TagReader {
                 case "ARTIST": if (artist == null) artist = v; break;
                 case "ALBUMARTIST": case "ALBUM ARTIST": case "ALBUM_ARTIST": if (albumArtist == null) albumArtist = v; break;
                 case "MUSICBRAINZ_ALBUMID": if (mbid == null) mbid = v; break;
+                case "TITLE": if (title == null) title = v; break;
                 // "3" or "3/14"
                 // Track 0 is kept: the Eversolo CD Ripper numbers tracks from 0, and the rip check reports it.
                 case "TRACKNUMBER":
@@ -352,7 +354,7 @@ public final class TagReader {
         }
 
         TrackInfo track() {
-            return new TrackInfo(track, trackTotal, disc, durationMs, mbid);
+            return new TrackInfo(track, trackTotal, disc, durationMs, mbid, title);
         }
     }
 }

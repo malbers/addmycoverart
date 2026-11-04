@@ -1,0 +1,85 @@
+{
+  "created": "2026-10-30T12:00:00.000Z",
+  "count": 2,
+  "offset": 0,
+  "releases": [
+    {
+      "id": "5e1e5b8d-324e-5dd7-854f-b2242822c2fd",
+      "score": 64,
+      "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+      "count": 1,
+      "title": "Lantern Light",
+      "status": "Official",
+      "text-representation": {
+        "language": "eng",
+        "script": "Latn"
+      },
+      "artist-credit": [
+        {
+          "name": "The Lanterns",
+          "artist": {
+            "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+            "name": "The Lanterns",
+            "sort-name": "Lanterns, The"
+          }
+        }
+      ],
+      "release-group": {
+        "id": "5def2c08-d044-5338-b521-e778ca8730d5",
+        "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+        "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+        "title": "Lantern Light",
+        "primary-type": "Album"
+      },
+      "date": "1996-03-18",
+      "country": "GB",
+      "track-count": 10,
+      "media": [
+        {
+          "format": "CD",
+          "disc-count": 0,
+          "track-count": 10
+        }
+      ]
+    },
+    {
+      "id": "a3df9dbd-3193-537f-9967-210fe8823fa9",
+      "score": 58,
+      "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+      "count": 1,
+      "title": "Harbour Lights",
+      "status": "Official",
+      "text-representation": {
+        "language": "eng",
+        "script": "Latn"
+      },
+      "artist-credit": [
+        {
+          "name": "The Lanterns",
+          "artist": {
+            "id": "08be9b0c-0a06-5707-8a66-84e6a2df3079",
+            "name": "The Lanterns",
+            "sort-name": "Lanterns, The"
+          }
+        }
+      ],
+      "release-group": {
+        "id": "bcd57737-0c69-5425-92a5-86b4ae4847fb",
+        "type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+        "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+        "title": "Harbour Lights",
+        "primary-type": "Single"
+      },
+      "date": "1996-01-29",
+      "country": "GB",
+      "track-count": 2,
+      "media": [
+        {
+          "format": "CD",
+          "disc-count": 0,
+          "track-count": 2
+        }
+      ]
+    }
+  ]
+}

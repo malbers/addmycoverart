@@ -3,7 +3,10 @@ package com.malbers.addmycoverart.core;
 /** Either an image (with the URL it came from) or a reason it could not be found. */
 public final class LookupResult {
     public static final String NO_TAGS = "no tags";
+    /** MusicBrainz returned releases, but none passed the checks. */
     public static final String NO_MATCH = "no confident match";
+    /** MusicBrainz returned nothing at all for the album's searches. */
+    public static final String NOT_ON_MB = "not on MusicBrainz";
     public static final String NO_ART = "no art on file";
     public static final String NETWORK = "network error";
     /** Source prefix when the image was copied out of the album's own first track. */

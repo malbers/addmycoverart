@@ -64,6 +64,17 @@ public class TagReaderTest {
     }
 
     @Test
+    public void flacTrackTitle() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write("fLaC".getBytes(StandardCharsets.US_ASCII));
+        block(out, 4, true, vorbis("Title=Harbour Lights", "TRACKNUMBER=1/12"));
+        TrackInfo t = TagReader.readTrack(write("t.flac", out.toByteArray()));
+        assertEquals("Harbour Lights", t.title);
+        assertEquals(Integer.valueOf(1), t.track);
+        assertEquals("Harbour Lights", t.withFile(new File("01.flac")).withTrack(2).title);
+    }
+
+    @Test
     public void flacKeysCaseInsensitive() throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         out.write("fLaC".getBytes(StandardCharsets.US_ASCII));
@@ -141,6 +152,14 @@ public class TagReaderTest {
         assertEquals("Beatles", t.albumArtist);
         assertEquals("mb-123", t.mbAlbumId);
         assertTrue(t.hasPicture);
+    }
+
+    @Test
+    public void id3TrackTitle() throws Exception {
+        byte[] f = id3(4, frame(4, "TIT2", text(3, "Kerosene Heart")), frame(4, "TRCK", text(0, "6/12")));
+        TrackInfo t = TagReader.readTrack(write("t.mp3", f));
+        assertEquals("Kerosene Heart", t.title);
+        assertEquals(Integer.valueOf(6), t.track);
     }
 
     @Test

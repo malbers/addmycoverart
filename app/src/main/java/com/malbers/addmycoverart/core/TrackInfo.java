@@ -4,7 +4,7 @@ import java.io.File;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Per-track facts from one file's header, for the rip check. Any field may be null. */
+/** Per-track facts from one file's header, for the rip check and track-list matching. Any field may be null. */
 public final class TrackInfo {
     public static final TrackInfo EMPTY = new TrackInfo(null, null, null, null, null);
 
@@ -17,6 +17,8 @@ public final class TrackInfo {
     /** Playing time from the FLAC STREAMINFO block; null for other formats, or when the file states none. */
     public final Long durationMs;
     public final String mbAlbumId;
+    /** The track's own title tag (TITLE / TIT2). */
+    public final String title;
     /** File name without extension, for messages; null when not tied to a file. */
     public final String name;
     /** File size in bytes, or -1. */
@@ -25,16 +27,21 @@ public final class TrackInfo {
     public final Integer fileNumber;
 
     public TrackInfo(Integer track, Integer trackTotal, Integer disc, Long durationMs, String mbAlbumId) {
-        this(track, trackTotal, disc, durationMs, mbAlbumId, null, -1, null);
+        this(track, trackTotal, disc, durationMs, mbAlbumId, null);
     }
 
-    private TrackInfo(Integer track, Integer trackTotal, Integer disc, Long durationMs, String mbAlbumId,
+    public TrackInfo(Integer track, Integer trackTotal, Integer disc, Long durationMs, String mbAlbumId, String title) {
+        this(track, trackTotal, disc, durationMs, mbAlbumId, title, null, -1, null);
+    }
+
+    private TrackInfo(Integer track, Integer trackTotal, Integer disc, Long durationMs, String mbAlbumId, String title,
                       String name, long bytes, Integer fileNumber) {
         this.track = track;
         this.trackTotal = trackTotal;
         this.disc = disc;
         this.durationMs = durationMs;
         this.mbAlbumId = mbAlbumId;
+        this.title = title;
         this.name = name;
         this.bytes = bytes;
         this.fileNumber = fileNumber;
@@ -47,12 +54,12 @@ public final class TrackInfo {
         String base = dot > 0 ? n.substring(0, dot) : n;
         Matcher m = LEADING_NUMBER.matcher(n);
         Integer num = m.find() ? Integer.valueOf(m.group(1)) : null;
-        return new TrackInfo(track, trackTotal, disc, durationMs, mbAlbumId, base, f.length(), num);
+        return new TrackInfo(track, trackTotal, disc, durationMs, mbAlbumId, title, base, f.length(), num);
     }
 
     /** The same track with a different tag number (used to undo tags that count from 0). */
     public TrackInfo withTrack(Integer t) {
-        return new TrackInfo(t, trackTotal, disc, durationMs, mbAlbumId, name, bytes, fileNumber);
+        return new TrackInfo(t, trackTotal, disc, durationMs, mbAlbumId, title, name, bytes, fileNumber);
     }
 
     /** How messages refer to this track: its file name when known, else its number. */
