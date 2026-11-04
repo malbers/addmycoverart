@@ -136,6 +136,9 @@ public class TrackListMatchTest {
         String q = URLDecoder.decode(http.asked.get(1), "UTF-8");
         assertTrue(q, q.contains("artist:\"The Lanterns\" AND tracksrelease:12 AND (recording:\"Harbour Lights\""));
         assertTrue(q, q.contains("recording:\"Last Train Home\")"));
+        // Searched as the bare song title; the tag's "- 2004 Remaster" would miss the recording.
+        assertTrue(q, q.contains(" OR recording:\"Kerosene Heart\" OR "));
+        assertFalse(q, q.contains("Remaster"));
     }
 
     @Test

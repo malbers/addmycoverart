@@ -73,7 +73,11 @@ final class TrackListMatch {
     /** Comparison key for a track title: {@link Text#norm}, after dropping a " - 2004 Remaster" style suffix. */
     static String titleKey(String title) {
         if (title == null) return "";
-        return Text.norm(REMASTER_SUFFIX.matcher(title).replaceAll(""));
+        return Text.norm(withoutRemaster(title));
+    }
+
+    private static String withoutRemaster(String title) {
+        return REMASTER_SUFFIX.matcher(title).replaceAll("");
     }
 
     /** Matches needed from {@code sampled} titles: all but one in five (5 → 4, 4 → 4, 3 → 3). */
@@ -121,7 +125,7 @@ final class TrackListMatch {
                 .append(trackCount).append(" AND (");
         for (int i = 0; i < samples.size(); i++) {
             if (i > 0) q.append(" OR ");
-            q.append("recording:\"").append(ArtLookup.clean(ArtLookup.searchTitle(samples.get(i).title))).append('"');
+            q.append("recording:\"").append(ArtLookup.clean(ArtLookup.searchTitle(withoutRemaster(samples.get(i).title)))).append('"');
         }
         return q.append(')').toString();
     }
