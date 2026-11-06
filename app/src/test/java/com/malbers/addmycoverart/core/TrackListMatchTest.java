@@ -84,7 +84,8 @@ public class TrackListMatchTest {
 
     /** One file per title, "01 Title.flac", tagged with album, artist, title and track number. */
     private Album folder(String album, String... titles) throws Exception {
-        File dir = new File(tmp.getRoot(), "The Lanterns/" + album);
+        // ':' is illegal in Windows (and FAT/exFAT/SMB) folder names; only the ALBUM tag keeps it.
+        File dir = new File(tmp.getRoot(), "The Lanterns/" + album.replace(':', ' '));
         assertTrue(dir.mkdirs());
         File first = null;
         for (int i = 0; i < titles.length; i++) {
@@ -299,7 +300,12 @@ public class TrackListMatchTest {
     }
 
     private static JSONObject nightDrives() {
-        return new JSONObject(fixture("release-night-drives.json"));
+        // Android's org.json throws a checked JSONException here; the plain-Java jar does not.
+        try {
+            return new JSONObject(fixture("release-night-drives.json"));
+        } catch (org.json.JSONException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Test
