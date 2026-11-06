@@ -18,13 +18,16 @@ public final class LookupResult {
     /** Artist and album as searched, for display. Either may be null. */
     public final String artist;
     public final String album;
+    /** Found by the track-list fallback rather than by album title or MusicBrainz ID. */
+    public final boolean byTrackList;
 
-    private LookupResult(byte[] image, String source, String reason, String artist, String album) {
+    private LookupResult(byte[] image, String source, String reason, String artist, String album, boolean byTrackList) {
         this.image = image;
         this.source = source;
         this.reason = reason;
         this.artist = artist;
         this.album = album;
+        this.byTrackList = byTrackList;
     }
 
     public boolean fromTracks() {
@@ -32,10 +35,15 @@ public final class LookupResult {
     }
 
     static LookupResult found(byte[] image, String source, String artist, String album) {
-        return new LookupResult(image, source, null, artist, album);
+        return new LookupResult(image, source, null, artist, album, false);
+    }
+
+    /** The same image, marked as found by the track-list fallback. */
+    static LookupResult viaTrackList(LookupResult r) {
+        return new LookupResult(r.image, r.source, r.reason, r.artist, r.album, true);
     }
 
     static LookupResult notFound(String reason, String artist, String album) {
-        return new LookupResult(null, null, reason, artist, album);
+        return new LookupResult(null, null, reason, artist, album, false);
     }
 }

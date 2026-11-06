@@ -37,3 +37,18 @@ run with `org.junit.runner.JUnitCore`.
 - Before any change (main @ 1b8f69b): **OK (82 tests)**. Two of those are `LiveSmokeTest`, which skips itself
   unless `AMCA_LIVE=1`.
 - After: **OK (107 tests)**: the same 82 plus 23 in the new `TrackListMatchTest` and 2 in `TagReaderTest`.
+
+## Michael's answers (round 2, 2026-11-05)
+
+1. Privacy: **open, Michael's.** He checks the wording, sets the effective date, updates the hosted copy before release.
+2. One folder per disc: **keep strict.**
+3. No album title: **not now.**
+4. Rip Error Check fallback: **later, as a separate change.**
+5. Show how it matched: **yes.** Done: "Found by track list · saved folder.jpg" while running, "Added (by track list)" in the report (`LookupResult.byTrackList`). README says so.
+6. Two albums fit / Various Artists: **keep.**
+7. Time cost: **fine.**
+8. Non-Latin titles: **fine for now**, listed in the README as a known limit.
+
+Test gate after round 2 (plain Java, JDK 21 `--release 17`, Hetzner): **OK (107 tests)**, with new assertions in the
+two confident-fallback tests and the title-match test. `MainActivity` is outside this gate; the Gradle build on
+desktop compiles it.

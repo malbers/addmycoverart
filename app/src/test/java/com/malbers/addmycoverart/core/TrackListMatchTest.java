@@ -128,6 +128,7 @@ public class TrackListMatchTest {
         assertArrayEquals(JPEG, r.image);
         assertNull(r.reason);
         assertTrue(r.source, r.source.contains("release/" + NIGHT_DRIVES + "/front-1200"));
+        assertTrue("marked as a track-list match", r.byTrackList);
         // One search each, one lookup: "Coastline" had only three of the five titles and was never fetched.
         assertEquals(1, count(http.asked, RELEASE_SEARCH));
         assertEquals(1, count(http.asked, RECORDING_SEARCH));
@@ -152,6 +153,7 @@ public class TrackListMatchTest {
         // No art on the release itself: the release group's cover, as the title search does.
         assertArrayEquals(JPEG, r.image);
         assertTrue(r.source, r.source.contains("release-group/" + NIGHT_DRIVES_RG));
+        assertTrue("marked as a track-list match", r.byTrackList);
     }
 
     @Test
@@ -261,6 +263,7 @@ public class TrackListMatchTest {
         Album a = folder("Night Drives: The Collection", greatestHits());
         LookupResult r = new ArtLookup(http).find(a, tags("Night Drives: The Collection"));
         assertArrayEquals(JPEG, r.image);
+        assertFalse("a title match is not marked as a track-list match", r.byTrackList);
         assertEquals(Arrays.asList(
                 ArtLookup.MB + "release/?query=" + "release%3A%22Night%20Drives%3A%20The%20Collection%22%20AND%20artist%3A%22The%20Lanterns%22&fmt=json&limit=25",
                 ArtLookup.CAA + "release/nd/front-1200"), http.asked);

@@ -536,8 +536,10 @@ public class MainActivity extends Activity {
                         bigCover.setAlpha(0f);
                         bigCover.animate().alpha(1f).setDuration(300).start();
                         nowStatus.setTextColor(Ui.GOOD);
-                        nowStatus.setText(r.fromTracks() ? "Copied from the tracks · saved folder.jpg" : "Found · saved folder.jpg");
-                        item = new ItemAdapter.Item(name, sub, r.fromTracks() ? "Added (from tracks)" : "Added", Ui.GOOD, thumb, true, album);
+                        nowStatus.setText(r.fromTracks() ? "Copied from the tracks · saved folder.jpg"
+                                : r.byTrackList ? "Found by track list · saved folder.jpg" : "Found · saved folder.jpg");
+                        item = new ItemAdapter.Item(name, sub, r.fromTracks() ? "Added (from tracks)"
+                                : r.byTrackList ? "Added (by track list)" : "Added", Ui.GOOD, thumb, true, album);
                         added.add(item);
                     } else {
                         String why = error != null ? error : r.reason;

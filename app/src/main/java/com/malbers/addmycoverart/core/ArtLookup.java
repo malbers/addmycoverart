@@ -84,7 +84,7 @@ public final class ArtLookup {
                         TrackListMatch.Match m = matches.get(0);
                         LookupResult r = cover("release/" + m.releaseId, artist, album);
                         if (r == null && m.releaseGroupId != null) r = cover("release-group/" + m.releaseGroupId, artist, album);
-                        return r != null ? r : LookupResult.notFound(LookupResult.NO_ART, artist, album);
+                        return r != null ? LookupResult.viaTrackList(r) : LookupResult.notFound(LookupResult.NO_ART, artist, album);
                     }
                 }
                 return LookupResult.notFound(nothing ? LookupResult.NOT_ON_MB : LookupResult.NO_MATCH, artist, album);
