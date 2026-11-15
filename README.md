@@ -1,6 +1,6 @@
 # AddMyCoverArt
 
-Fills in missing album art on music already ripped to an Eversolo streamer. Pick a folder, see which albums have no cover, tap one button, and watch the covers arrive. It can also check your rips for missing, empty or cut-short tracks.
+An APK for the Eversolo DMP (tested on DMP-A6) that fills in missing album art on music already ripped to an Eversolo streamer. Pick a folder, see which albums have no cover, tap one button, and watch the covers arrive. It can also check your rips for missing, empty or cut-short tracks.
 
 Built for the Eversolo DMP-A6, where CD rips made before the CD Ripper fix often have no artwork. It runs on the device itself, so there is no PC, no network share and no tagging software involved.
 
