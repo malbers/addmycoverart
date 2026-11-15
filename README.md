@@ -47,6 +47,10 @@ Rip Error Check tells you what's wrong. **[FixMyRips](https://github.com/malbers
 
 And the bonus: scan a CD's barcode with your phone, standing at your shelf, and it tells you whether that disc is already ripped. Same install as this one. Fill in the covers with AddMyCoverArt, fix the tags with FixMyRips.
 
+### 📊 Also from me: EverSignal
+
+Ever wondered whether your music really reaches your DAC untouched? **[EverSignal](https://github.com/malbers/eversignal)** is a now-playing screen for the Eversolo DMP-A6 that shows the whole signal path, from the file to the output port, and tells you whether it's bit-perfect. Plus five pages of every stat the player reports. It only reads, it never writes. Same install as this one.
+
 ## What it never does
 
 - It never changes, renames, moves or deletes your music, tags or folders.
@@ -200,4 +204,4 @@ You're welcome to use it, modify it, build on it and send improvements. If you r
 
 Contributions are welcome. Anything you submit to this repository is accepted under the same Apache 2.0 licence.
 
-Also from me: [FixMyRips](https://github.com/malbers/fixmyrips) fixes the tags on the same Eversolo rips, and tells you from your phone whether a CD is already ripped.
+Also from me: [FixMyRips](https://github.com/malbers/fixmyrips) fixes the tags on the same Eversolo rips, and tells you from your phone whether a CD is already ripped. [EverSignal](https://github.com/malbers/eversignal) shows what your DMP-A6 is playing, all the way to the DAC, and whether it is bit-perfect.
