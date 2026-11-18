@@ -88,7 +88,7 @@ The app contacts only `musicbrainz.org` and `coverartarchive.org` for covers, pa
 
 ## Download
 
-[**AddMyCoverArt-1.0.4.apk**](https://github.com/malbers/addmycoverart/releases/download/v1.0.4/AddMyCoverArt-1.0.4.apk) (from the [v1.0.4 release](https://github.com/malbers/addmycoverart/releases/tag/v1.0.4))
+[**Download the latest AddMyCoverArt**](https://github.com/malbers/addmycoverart/releases/latest): on the release page, click `AddMyCoverArt-<version>.apk` under **Assets**. This link always points to the newest version.
 
 Download it to your laptop or desktop, not to the Eversolo. The next section shows how to get it from your computer onto the Eversolo.
 
@@ -105,8 +105,10 @@ No network needed.
 1. **Copy the APK onto a USB thumb drive** (FAT32, exFAT or NTFS, which covers almost any drive).
 2. **Plug it into a USB port on the back of the Eversolo.**
 3. **Open the Files app**, pick the USB drive in the list on the left, and go to the folder with the APK.
-4. **Tap `AddMyCoverArt-1.0.4.apk`, then Install.** If it asks to allow installs from unknown sources, turn that on for Files.
+4. **Tap `AddMyCoverArt-<version>.apk`, then Install.** If it asks to allow installs from unknown sources, turn that on for Files.
 5. **Tap Done**, then find it in the **Apps** tab.
+
+**Tip:** one thumb drive can carry all three of my Eversolo apps (AddMyCoverArt, [FixMyRips](https://github.com/malbers/fixmyrips) and [EverSignal](https://github.com/malbers/eversignal)), so you can install them in one go.
 
 ### Option B: the Eversolo's upload page
 
@@ -118,7 +120,7 @@ No network needed.
 
    ![Eversolo web upload page with the Upload Apk button](docs/install/2-upload-page.jpg)
 
-3. **Send the app.** Click **Select APK File**, find `AddMyCoverArt-1.0.4.apk` where you downloaded it (usually your Downloads folder), and choose it. It uploads and installs on the Eversolo by itself.
+3. **Send the app.** Click **Select APK File**, find `AddMyCoverArt-<version>.apk` where you downloaded it (usually your Downloads folder), and choose it. It uploads and installs on the Eversolo by itself.
 
    ![Select APK File](docs/install/3-select-apk.jpg)
 
@@ -135,7 +137,7 @@ Use this if the upload page doesn't work for you, or if you already copy music t
    - **Windows:** open File Explorer, click in the address bar at the top, type the `\\` address and press Enter.
    - **Mac:** in Finder, choose **Go > Connect to Server** (or press Cmd+K), type the `smb://` address and click Connect. If it asks how to connect, choose **Guest**.
 3. **Copy the APK** into any folder on the Eversolo, for example the `Download` folder on its SSD. Drag it in like any other file.
-4. **Install it from the Eversolo.** On the Eversolo, open the built-in **Files** app, go to the folder you used, and tap `AddMyCoverArt-1.0.4.apk`.
+4. **Install it from the Eversolo.** On the Eversolo, open the built-in **Files** app, go to the folder you used, and tap `AddMyCoverArt-<version>.apk`.
 
    ![The APK in the Eversolo Files app](docs/install/smb-1-files-app.jpg)
 
