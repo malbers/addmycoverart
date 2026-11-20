@@ -16,6 +16,8 @@ Built for the Eversolo DMP-A6, where CD rips made before the CD Ripper fix often
 
 ▶ [Short screen recording](docs/screenshots/demo.mp4)
 
+[![Downloads to date](https://img.shields.io/github/downloads/malbers/addmycoverart/total?label=downloads%20to%20date&color=2ea043)](https://github.com/malbers/addmycoverart/releases)
+
 **Contents**
 
 - [What people are saying](#what-people-are-saying)
