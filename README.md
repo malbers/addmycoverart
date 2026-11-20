@@ -181,6 +181,22 @@ You don't need to come back here to check for new versions: from version 1.0.3 o
 
 3. **Install it.** Open the **Files** app, choose **Storage** on the left (the Eversolo's own storage, not the SSD), open **Download**, tap the new `AddMyCoverArt` APK and tap **Install**, as in Option C. It installs over the old version; nothing in the app is lost.
 
+**If a browser opens instead.** On a few Eversolos the download goes through Chrome rather than straight to the Download folder. It's just three extra taps:
+
+- **Pick Chrome** and tap **Just once**.
+
+  ![Open with Chrome](docs/install/update-2-open-with.jpg)
+
+- **Leave it on Downloads** and tap **Download**.
+
+  ![Choose where to download](docs/install/update-3-download.jpg)
+
+- **Tap Download anyway.** Chrome shows this warning for every APK; it doesn't mean anything is wrong with this one.
+
+  ![File might be harmful](docs/install/update-4-warning.jpg)
+
+Then install it as in step 3.
+
 You can also download any version from the [releases page](https://github.com/malbers/addmycoverart/releases) on your computer and use any of the options above.
 
 ### Is this file really from me?
