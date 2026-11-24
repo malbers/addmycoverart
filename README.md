@@ -10,7 +10,7 @@ Built for the Eversolo DMP-A6, where CD rips made before the CD Ripper fix often
 
 **▶ Watch it in action (43 seconds):** finding the back cover, booklet pages and disc for *Revolver*, looking at them full screen, and saving them for EverSignal.
 
-[![Find more art for Revolver: 7 pictures found. Click to play the video.](docs/screenshots/v110/find-covers-thumb.jpg)](docs/screenshots/v110/find-covers.mp4)
+https://github.com/user-attachments/assets/54d0f010-9a96-4dae-8f8f-98a5bba33a92
 
 | Find more art | See it before you save it | Saved, ready for EverSignal |
 |---|---|---|
