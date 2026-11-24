@@ -8,6 +8,10 @@ Built for the Eversolo DMP-A6, where CD rips made before the CD Ripper fix often
 
 ![Your music as covers: artist mosaics, albums without a cover in orange, and how many already have extra art (2/2)](docs/screenshots/v110/1-browse.jpg)
 
+**▶ Watch it in action (43 seconds):** finding the back cover, booklet pages and disc for *Revolver*, looking at them full screen, and saving them for EverSignal.
+
+[![Find more art for Revolver: 7 pictures found. Click to play the video.](docs/screenshots/v110/find-covers-thumb.jpg)](docs/screenshots/v110/find-covers.mp4)
+
 | Find more art | See it before you save it | Saved, ready for EverSignal |
 |---|---|---|
 | ![5 pictures found for Greatest Hits: front, back, booklet, disc, tray](docs/screenshots/v110/5-found.jpg) | ![A booklet page full screen, with its size](docs/screenshots/v110/6-viewer-booklet.jpg) | ![Saved 5 pictures to the album's Scan folder](docs/screenshots/v110/7-saved.jpg) |
