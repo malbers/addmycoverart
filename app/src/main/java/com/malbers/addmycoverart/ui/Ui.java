@@ -19,14 +19,16 @@ import android.widget.TextView;
 
 /** Colours and small view builders. Dark, to sit with the Eversolo UI; orange and green from the icon. */
 public final class Ui {
-    public static final int BG = Color.parseColor("#14171F");
-    public static final int CARD = Color.parseColor("#1F2430");
-    public static final int CARD_HI = Color.parseColor("#2A3142");
-    public static final int TEXT = Color.parseColor("#ECEFF4");
-    public static final int SUB = Color.parseColor("#9AA3B2");
-    public static final int ACCENT = Color.parseColor("#F0A63C");
-    public static final int GOOD = Color.parseColor("#3CC46E");
-    public static final int BAD = Color.parseColor("#E5636B");
+    // 1.1.0: mapped onto the redesign tokens (Theme) so screens not yet rebuilt already sit in the new palette.
+    // No red anywhere in the redesign: "not found" is muted grey, a missing cover is not an error.
+    public static final int BG = Theme.GROUND;
+    public static final int CARD = Theme.SURFACE;
+    public static final int CARD_HI = Theme.SURFACE_RAISED;
+    public static final int TEXT = Theme.TEXT;
+    public static final int SUB = Theme.TEXT_3;
+    public static final int ACCENT = Theme.ACCENT;
+    public static final int GOOD = Theme.SUCCESS;
+    public static final int BAD = Theme.TEXT_3;
 
     private Ui() {}
 
@@ -58,23 +60,12 @@ public final class Ui {
     }
 
     /** Filled pill button; a primary one is orange with dark text. */
-    public static Button button(Context c, String label, boolean primary, View.OnClickListener l) {
-        Button b = new Button(c);
-        b.setText(label);
-        b.setAllCaps(false);
-        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-        b.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        b.setTextColor(primary ? BG : TEXT);
-        b.setStateListAnimator(null);
-        b.setBackground(new RippleDrawable(ColorStateList.valueOf(0x33FFFFFF), rounded(c, primary ? ACCENT : CARD_HI, 24), null));
-        int h = dp(c, 20);
-        b.setPadding(h, 0, h, 0);
-        b.setMinHeight(dp(c, 48));
-        b.setOnClickListener(l);
-        return b;
+    /** 1.1.0: the redesign's buttons (Theme): primary, else ghost. */
+    public static TextView button(Context c, String label, boolean primary, View.OnClickListener l) {
+        return Theme.button(c, label, primary ? Theme.PRIMARY : Theme.GHOST, l);
     }
 
-    public static Button button(Context c, String label, View.OnClickListener l) {
+    public static TextView button(Context c, String label, View.OnClickListener l) {
         return button(c, label, false, l);
     }
 

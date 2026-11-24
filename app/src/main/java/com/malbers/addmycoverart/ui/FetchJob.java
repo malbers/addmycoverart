@@ -37,6 +37,18 @@ public final class FetchJob implements Runnable {
         this.listener = listener;
     }
 
+    private volatile boolean offline, busy;
+
+    /** True when the stop was the database being busy, not the network. */
+    public boolean wasBusy() {
+        return busy;
+    }
+
+    /** True once a lookup failed to reach the cover database in this run. */
+    public boolean wentOffline() {
+        return offline;
+    }
+
     /** Finishes the album in progress, then stops. */
     public void cancel() {
         cancelled = true;
@@ -46,7 +58,7 @@ public final class FetchJob implements Runnable {
     public void run() {
         for (int i = 0; i < albums.size() && !cancelled; i++) {
             // A breather between albums, so a big library is a gentle trickle, not a burst.
-            if (i > 0) {
+            if (i > 0 && !offline) {
                 try {
                     Thread.sleep(PAUSE_MS);
                 } catch (InterruptedException e) {
@@ -58,13 +70,22 @@ public final class FetchJob implements Runnable {
             String artist = t.bestArtist();
             String title = t.album != null ? t.album : a.dir.getName();
             listener.onStart(a, artist, title, i, albums.size());
-            LookupResult r = lookup.find(a, t);
+            // P4 (06c): once the cover database can't be reached, stop asking it for the rest of the run;
+            // covers inside the files are still saved, the rest come back as "not tried"
+            LookupResult r = offline ? ArtLookup.findOffline(a, t) : lookup.find(a, t);
+            if (LookupResult.NETWORK.equals(r.reason)) offline = true;
+            if (LookupResult.BUSY.equals(r.reason)) { offline = true; busy = true; } // be gentle: stop asking for this run
             File saved = null;
             String error = null;
             if (r.image != null) {
                 try {
                     saved = ArtWriter.save(a.dir, r.image, r.source, runLog);
-                    if (saved == null) error = "art already there, left alone";
+                    if (saved == null) {
+                        // 1.1.0: a folder.jpg that isn't a picture blocks the name, and it is never overwritten
+                        File f = new File(a.dir, ArtWriter.NAME);
+                        String why = f.exists() ? com.malbers.addmycoverart.core.AlbumScanner.artProblem(f) : null;
+                        error = why != null ? "folder.jpg " + why + ", left alone" : "art already there, left alone";
+                    }
                 } catch (IOException e) {
                     error = "couldn't save: " + e.getMessage();
                 }

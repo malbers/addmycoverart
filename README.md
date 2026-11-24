@@ -1,20 +1,20 @@
 # AddMyCoverArt
 
-An APK for the Eversolo DMP (tested on DMP-A6) that fills in missing album art on music already ripped to an Eversolo streamer. Pick a folder, see which albums have no cover, tap one button, and watch the covers arrive. It can also check your rips for missing, empty or cut-short tracks.
+An APK for the Eversolo DMP (tested on DMP-A6) that fills in missing album art on music already ripped to an Eversolo streamer. Browse your music as covers, see at a glance which albums have none, tap one button, and watch the covers arrive. New in 1.1: find the back cover, booklet pages, disc and tray for any album, and see them in [EverSignal](https://github.com/malbers/eversignal)'s full-screen slideshow while it plays. It can also check your rips for missing, empty or cut-short tracks.
 
 Built for the Eversolo DMP-A6, where CD rips made before the CD Ripper fix often have no artwork. It runs on the device itself, so there is no PC, no network share and no tagging software involved.
 
 > **Made by Michael Albers.** I make honest videos about budget audio equipment, including a lot of Eversolo DMP-A6 how-tos. If this app helped you, come find more on my YouTube channel: **[youtube.com/@malbers](https://www.youtube.com/@malbers)**
 
-![Fetching covers: each album's art appears as it is found and saved](docs/screenshots/3-fetching.png)
+![Your music as covers: artist mosaics, albums without a cover in orange, and how many already have extra art (2/2)](docs/screenshots/v110/1-browse.jpg)
 
-| Choose a folder | Scan results | Report |
+| Find more art | See it before you save it | Saved, ready for EverSignal |
 |---|---|---|
-| ![Folder list](docs/screenshots/1-choose-folder.png) | ![Albums missing art](docs/screenshots/2-scan-results.png) | ![What was added](docs/screenshots/5-report.png) |
+| ![5 pictures found for Greatest Hits: front, back, booklet, disc, tray](docs/screenshots/v110/5-found.jpg) | ![A booklet page full screen, with its size](docs/screenshots/v110/6-viewer-booklet.jpg) | ![Saved 5 pictures to the album's Scan folder](docs/screenshots/v110/7-saved.jpg) |
 
-![Working through a 148-album library](docs/screenshots/4-fetching-library.png)
-
-▶ [Short screen recording](docs/screenshots/demo.mp4)
+| Fetching missing covers | The report: it says why |
+|---|---|
+| ![Fetching covers for a folder, one album at a time](docs/screenshots/v110/8-fetching.jpg) | ![The report, with a plain reason for each album it couldn't find](docs/screenshots/v110/9-report.jpg) |
 
 [![Downloads to date](https://img.shields.io/github/downloads/malbers/addmycoverart/total?label=downloads%20to%20date&color=2ea043)](https://github.com/malbers/addmycoverart/releases)
 
@@ -22,6 +22,7 @@ Built for the Eversolo DMP-A6, where CD rips made before the CD Ripper fix often
 
 - [What people are saying](#what-people-are-saying)
 - [What it does](#what-it-does)
+- [Find more art: booklets, back covers, disc art](#find-more-art-booklets-back-covers-disc-art)
 - [What it never does](#what-it-never-does)
 - [Where the covers come from](#where-the-covers-come-from)
 - [Download](#download)
@@ -51,15 +52,36 @@ From the *Eversolo DMP-A6 Users & Friends* group on Facebook:
 
 ## What it does
 
-1. **Pick a folder** on the internal storage or an attached drive, e.g. `EverSoloMusic`.
-2. **Scan.** Every folder with audio files counts as an album. You get a count of albums, how many already have art, and a list of the ones missing it.
-3. **Fetch Album Art.** For each album it shows the cover as it is found, saves it, and moves to the next. It looks inside your own music files first, then at [MusicBrainz](https://musicbrainz.org) and the [Cover Art Archive](https://coverartarchive.org). See [Where the covers come from](#where-the-covers-come-from).
-4. **Report.** What was added, what couldn't be found and why, and what was skipped.
+1. **Browse your music as covers.** Pick a drive and a folder, e.g. `EverSoloMusic`. Artist folders show a mosaic of their first four covers, albums show their own cover, and an album with no cover shows an orange dashed square, so the gaps jump out.
+2. **Scan.** Every folder with audio files counts as an album. You see the albums appear as they are found, then the ones with no cover grouped at the top.
+3. **Fetch album art.** For each album it shows the cover as it is found, saves it, and moves to the next. It looks inside your own music files first, then at [MusicBrainz](https://musicbrainz.org) and the [Cover Art Archive](https://coverartarchive.org). See [Where the covers come from](#where-the-covers-come-from). You can stop part-way and pick it up again later.
+4. **Report.** The new covers, what couldn't be found and why, and what was skipped.
 5. **See the covers.** Open your music library on the Eversolo. It usually picks up the new covers by itself; if some still show a blank disc, run a library rescan.
 
-**It can check your rips.** On the Scan Results screen, **Rip Error Check** (bottom left) compares each album with its release and lists missing tracks, empty tracks and tracks much shorter than they should be. It only reports; it never touches a file. **Save report** keeps the list as a text file in Download.
+**Tap any album** to open its page: the big cover, its track count and format, every picture already in the album folder (tap one to see it full screen, with its pixel size), and **Find more art**.
 
-**It keeps itself up to date.** Once a day it checks for a new version. When one is out, an **Update available** button appears; one tap downloads it, and you install it from the Files app. No computer needed. See [Updating later](#updating-later).
+**It spots broken cover files.** A cover file that is empty, or isn't a picture at all (some rips have a PDF booklet named `album.jpg`), doesn't count as a cover. The album is offered a fetch, and the broken file is left exactly where it is.
+
+**It can check your rips.** On the Scan Results screen, **Rip Error Check** compares each album with its release and lists missing tracks, empty tracks and tracks much shorter than they should be. It only reports; it never touches a file. **Save report** keeps the list as a text file in Download.
+
+**It keeps itself up to date.** Once a day it checks for a new version. When one is out, a green **Update** button appears at the top of the screen; tap it to download, then tap **Install**. No computer needed. See [Updating later](#updating-later).
+
+## Find more art: booklets, back covers, disc art
+
+Most CDs came with more than a front cover. Open an album and tap **Find more art for this album**: it looks the album up on MusicBrainz and asks the Cover Art Archive what pictures it has for that exact release, then shows them all: back cover, booklet pages, disc and tray.
+
+| The album page | Looking it up | The back cover, full screen |
+|---|---|---|
+| ![Album page: the cover, the pictures in the folder, and Find more art](docs/screenshots/v110/3-album.jpg) | ![Looking up Greatest Hits on MusicBrainz and the Cover Art Archive](docs/screenshots/v110/4-looking-up.jpg) | ![The back cover full screen: 1181 × 907, 288 KB](docs/screenshots/v110/6-viewer.jpg) |
+
+- **See before you choose.** Tap any picture to see it full screen, with its size. The check mark on each one leaves it in or out.
+- **Save** puts the ones you picked in a `Scan` folder inside the album folder: `back.jpg`, `booklet-01.jpg`, `booklet-02.jpg`, `disc.jpg`, `tray.jpg`. Nothing is ever overwritten; if a name is taken, the new picture gets `-2`.
+- **Your cover stays yours.** If the online front cover is clearly bigger than the one you have, it's offered too (marked **Bigger online**) and saved as `Scan/front.jpg`. Your own `folder.jpg` is never replaced. An album with no cover at all gets the front as its `folder.jpg`.
+- It works one album at a time, on purpose: which pages you want, and whether the online front beats yours, is your call.
+
+**Works with [EverSignal](https://github.com/malbers/eversignal).** EverSignal's Full-Screen Album Mode shows everything in the `Scan` folder as a slideshow while the album plays. Find the booklet here, then read it there while you listen.
+
+![EverSignal's Full-Screen Album Mode showing the Aventine booklet saved by AddMyCoverArt, while "Fuel to Fire" plays bit-perfect](docs/screenshots/v110/10-eversignal-booklet.jpg)
 
 ### 🔧 Also from me: FixMyRips
 
@@ -69,13 +91,14 @@ And the bonus: scan a CD's barcode with your phone, standing at your shelf, and 
 
 ### 📊 Also from me: EverSignal
 
-Ever wondered whether your music really reaches your DAC untouched? **[EverSignal](https://github.com/malbers/eversignal)** is a now-playing screen for the Eversolo DMP-A6 that shows the whole signal path, from the file to the output port, and tells you whether it's bit-perfect. Plus five pages of every stat the player reports. It only reads, it never writes. Same install as this one.
+Ever wondered whether your music really reaches your DAC untouched? **[EverSignal](https://github.com/malbers/eversignal)** is a now-playing screen for the Eversolo DMP-A6 that shows the whole signal path, from the file to the output port, and tells you whether it's bit-perfect. It measures each album's dynamic range, shows lyrics, and its Full-Screen Album Mode turns the booklet pages AddMyCoverArt finds into a slideshow while the album plays. Same install as this one.
 
 ## What it never does
 
 - It never changes, renames, moves or deletes your music, tags or folders.
-- It never overwrites art. An album that already has `folder.jpg`, `album.jpg`, `cover.jpg` or `front.jpg` is skipped.
-- In your music folders, the only file it ever creates is `folder.jpg`, next to your tracks. Delete it and the album is back how it was.
+- It never overwrites art. An album that already has `folder.jpg`, `album.jpg`, `cover.jpg` or `front.jpg` is skipped, and a picture saved into `Scan` never replaces one that's there.
+- In your music folders, it only ever creates `folder.jpg` next to your tracks, and the pictures you pick with Find more art, in the album's `Scan` folder. Delete them and the album is back how it was.
+- It never deletes a broken cover file (an empty one, or a PDF named `album.jpg`); it just doesn't count it as a cover.
 - The only other files it writes go to the Eversolo's Download folder, and only when you ask: a saved rip report, or a downloaded update.
 - No Google Play, no Google services, no accounts, no analytics.
 
@@ -86,7 +109,7 @@ Ever wondered whether your music really reaches your DAC untouched? **[EverSigna
 
 It only uses a match it is confident about: same title, same artist, closest track count. **A skipped album is better than the wrong cover.** Mix CDs, home recordings and obscure compilations will show up as "Couldn't find", which is expected.
 
-The app contacts only `musicbrainz.org` and `coverartarchive.org` for covers, pacing its requests to stay well inside MusicBrainz's limits, plus GitHub (`api.github.com`) at most once a day to see whether a newer version is out. Nothing about you or your music is sent.
+The app contacts only `musicbrainz.org` and `coverartarchive.org` for covers and pictures (the Cover Art Archive serves its images from `archive.org`, the Internet Archive), pacing its requests to stay well inside MusicBrainz's limits, plus GitHub (`api.github.com`) at most once a day to see whether a newer version is out. Nothing about you or your music is sent. If MusicBrainz is busy, the app says so and you can try again a minute later.
 
 ## Download
 
@@ -159,7 +182,7 @@ The first time you open it, the app asks for permission to read your music folde
 
    ![Permission screen](docs/install/first-1-permission.jpg)
 
-2. **Turn on the switch** next to **Allow access to manage all files**. Android's wording sounds alarming because this is a broad permission. AddMyCoverArt uses it only to read your folders, add `folder.jpg` files, and save a rip report or an update to Download when you ask. Then press the back arrow (top left) to return to the app.
+2. **Turn on the switch** next to **Allow access to manage all files**. Android's wording sounds alarming because this is a broad permission. AddMyCoverArt uses it only to read your folders, add `folder.jpg` files and the pictures you pick into `Scan` folders, and save a rip report or an update to Download when you ask. Then press the back arrow (top left) to return to the app.
 
    ![All files access](docs/install/first-2-all-files.jpg)
 
@@ -170,6 +193,14 @@ The first time you open it, the app asks for permission to read your music folde
 ### Updating later
 
 You don't need to come back here to check for new versions: from version 1.0.3 on, the app checks once a day by itself. When there is one, you update right on the Eversolo, with no computer and no browser needed. (Android always asks you to confirm an install, so nothing ever updates without your tap.)
+
+**From 1.1.0:**
+
+1. **Tap the green "Update · Download" button** at the top of the screen, next to "by @malbers". It downloads the new version by itself and shows how far along it is.
+2. **Tap "Install".** The first time, Android asks you to allow AddMyCoverArt to install apps: turn on the switch, press back, and tap **Install** again. (This is Android's standard "install unknown apps" permission. AddMyCoverArt only uses it to install its own update, and only when you tap.)
+3. **Tap Install** on Android's screen. It installs over the old version; nothing in the app is lost.
+
+**On 1.0.4 or earlier:**
 
 1. **Tap "Update available"** at the bottom left of the app's folder screen.
 
@@ -213,6 +244,16 @@ An APK with a different signer did not come from here.
 
 Newest first. Every version is also on the [releases page](https://github.com/malbers/addmycoverart/releases).
 
+**1.1.0** (23 November 2026)
+- **Find more art!** Open any album and find its back cover, booklet pages, disc and tray on the Cover Art Archive. See each one full screen, pick the ones you want, and they're saved in the album's `Scan` folder, ready for [EverSignal](https://github.com/malbers/eversignal)'s Full-Screen Album Mode slideshow. If the online front cover is bigger than yours, it's offered too, and your own cover is never replaced. Thanks to Václav H., whose love of CD booklets gave me the idea.
+- **Covers everywhere!** A completely new look: browse your music as covers, with artist folders as mosaics and albums without a cover marked in orange. Scan results, fetching and the report are all cover grids now.
+- **A page for every album.** Tap any album to see its cover, every picture in its folder (full screen, with pixel size) and what's missing.
+- **See what's left to fill in.** Albums with extra art show a small badge (**+8**), artist folders show how many of their albums have it (**2/5**), so the ones still waiting for a booklet stand out.
+- **Broken cover files are spotted.** An empty `album.jpg` or a PDF booklet saved as `album.jpg` no longer counts as a cover, so those albums finally get one. The broken file is left alone.
+- **Stop and resume** a long fetch, and **Try again** if the network drops or MusicBrainz is busy.
+- **Update from the app** with one more tap: the update button now installs the new version directly.
+- Long folder paths and album names scroll so you can read the end (Disc 1 or Disc 2?), and Back and Up return to where you were.
+
 **1.0.4** (28 October 2026)
 - **New: Rip Error Check.** A separate button at the bottom left of Scan Results. For each album it compares your folder with the release on MusicBrainz (or with the track numbers and totals in the tags) and lists missing tracks, empty tracks, and tracks much shorter than the release. It only reports; it never changes, renames or deletes anything. An album it can't match with confidence is counted as "Not checked", never guessed.
 - **Save report** writes the full list, including what wasn't checked, as a text file to the Eversolo's Download folder, so you can print it and work through it.
@@ -224,7 +265,7 @@ Newest first. Every version is also on the [releases page](https://github.com/ma
 
 ## Tested on
 
-Eversolo DMP-A6 (Gen 1), firmware 1.6.15, Android 11, with CD Ripper FLAC rips and an older MP3 library. It should work on other Android-based streamers, but that is untested.
+Eversolo DMP-A6 (Gen 1), firmware 1.6.15, Android 11, with CD Ripper FLAC rips and an older MP3 library. It should work on other Android-based streamers, but that is untested. Find more art is tested with EverSignal 1.0.13's Full-Screen Album Mode.
 
 ## Feedback
 

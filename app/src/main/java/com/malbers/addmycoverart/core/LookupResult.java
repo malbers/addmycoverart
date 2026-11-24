@@ -6,6 +6,8 @@ public final class LookupResult {
     public static final String NO_MATCH = "no confident match";
     public static final String NO_ART = "no art on file";
     public static final String NETWORK = "network error";
+    /** 1.1.0: the cover database answered "busy" (HTTP 5xx, e.g. MusicBrainz rate limiting): not the streamer's network. */
+    public static final String BUSY = "database busy";
     /** Source prefix when the image was copied out of the album's own first track. */
     public static final String FROM_TRACKS = "embedded:";
 

@@ -5,6 +5,8 @@
     <!-- Needed on Android 11 too: with targetSdk 29, attached drives look empty until this is granted. -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <!-- 1.1.0: "Install x" on the update pill hands the downloaded APK to Android's installer (asks once). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <application
         android:label="AddMyCoverArt"
         android:icon="@mipmap/ic_launcher"

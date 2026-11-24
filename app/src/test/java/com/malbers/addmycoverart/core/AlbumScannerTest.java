@@ -14,7 +14,12 @@ public class AlbumScannerTest {
     private File dir(String path, String... files) throws Exception {
         File d = new File(tmp.getRoot(), path);
         assertTrue(d.isDirectory() || d.mkdirs());
-        for (String f : files) assertTrue(new File(d, f).createNewFile());
+        for (String f : files) {
+            File x = new File(d, f);
+            // picture names get real JPEG bytes: an empty art file no longer counts as a cover (1.1.0)
+            if (AlbumScanner.isArtName(f)) java.nio.file.Files.write(x.toPath(), new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0});
+            else assertTrue(x.createNewFile());
+        }
         return d;
     }
 

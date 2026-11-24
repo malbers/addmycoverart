@@ -36,12 +36,8 @@ public final class ArtLookup {
             if (artist == null) artist = g[0];
             if (album == null) album = g[1];
         }
-        // Art already inside the tracks: copy that exact image out; no network, no edition guesswork.
-        // JPEG only, because the file is always named folder.jpg.
-        if (a.embeddedArt) {
-            byte[] pic = TagReader.readPicture(a.firstAudio);
-            if (isJpeg(pic)) return LookupResult.found(pic, LookupResult.FROM_TRACKS + a.firstAudio.getName(), artist, album);
-        }
+        LookupResult inFiles = inFiles(a, artist, album);
+        if (inFiles != null) return inFiles;
         try {
             if (t.mbAlbumId != null) {
                 LookupResult r = byReleaseId(t.mbAlbumId, artist, album);
@@ -61,10 +57,28 @@ public final class ArtLookup {
             }
             return LookupResult.notFound(LookupResult.NO_ART, artist, album);
         } catch (IOException e) {
-            return LookupResult.notFound(LookupResult.NETWORK, artist, album);
+            return LookupResult.notFound(isBusy(e) ? LookupResult.BUSY : LookupResult.NETWORK, artist, album);
         } catch (JSONException e) {
             return LookupResult.notFound(LookupResult.NO_MATCH, artist, album);
         }
+    }
+
+    /**
+     * Art already inside the tracks: copy that exact image out; no network, no edition guesswork.
+     * JPEG only, because the file is always named folder.jpg. Null when there is none.
+     */
+    private static LookupResult inFiles(Album a, String artist, String album) {
+        if (!a.embeddedArt) return null;
+        byte[] pic = TagReader.readPicture(a.firstAudio);
+        return isJpeg(pic) ? LookupResult.found(pic, LookupResult.FROM_TRACKS + a.firstAudio.getName(), artist, album) : null;
+    }
+
+    /** P4, network down (06c): only the cover inside the files, never the network; "not tried" when there is none. */
+    public static LookupResult findOffline(Album a, Tags t) {
+        String artist = t.bestArtist();
+        String album = t.album;
+        LookupResult r = inFiles(a, artist, album);
+        return r != null ? r : LookupResult.notFound(FetchText.NOT_TRIED_OFFLINE, artist, album);
     }
 
     private LookupResult byReleaseId(String mbid, String artist, String album) throws IOException, JSONException {
@@ -99,9 +113,46 @@ public final class ArtLookup {
             if (!(credit.equals(wantArtist) || credit.contains(wantArtist) || wantArtist.contains(credit)) || credit.isEmpty()) continue;
             out.add(r);
         }
+        // P6: ties broken the same way every time (official, earliest date, then id), so a refetch picks the same
+        // edition. Before, MusicBrainz's order decided, and Michael's Miss Perfumado got a different cover each run.
         out.sort(Comparator.<JSONObject>comparingInt(r -> Math.abs(r.optInt("track-count") - trackCount))
-                .thenComparing(r -> -r.optInt("score")));
+                .thenComparing(r -> -r.optInt("score"))
+                .thenComparing(r -> "Official".equalsIgnoreCase(r.optString("status")) ? 0 : 1)
+                .thenComparing(r -> date(r.optString("date")))
+                .thenComparing(r -> r.optString("id")));
         return out;
+    }
+
+    /** Missing dates sort last. */
+    private static String date(String d) {
+        return d == null || d.isEmpty() ? "9999" : d;
+    }
+
+    /**
+     * P6, Find more art: the releases this album most likely is, best first: its MusicBrainz ID tag, then up to
+     * {@link #MAX_CANDIDATES} confident search matches. Empty when there is no confident match. Network trouble throws.
+     */
+    public List<String> releaseCandidates(Album a, Tags t) throws IOException {
+        String artist = t.bestArtist();
+        String album = t.album;
+        if (artist == null || album == null) {
+            String[] g = FolderNameParser.guess(a.dir);
+            if (artist == null) artist = g[0];
+            if (album == null) album = g[1];
+        }
+        List<String> ids = new ArrayList<>();
+        if (t.mbAlbumId != null) ids.add(t.mbAlbumId);
+        if (artist == null || album == null) return ids;
+        try {
+            for (JSONObject r : search(artist, album, a.trackCount)) {
+                String id = r.optString("id");
+                if (!id.isEmpty() && !ids.contains(id)) ids.add(id);
+                if (ids.size() >= MAX_CANDIDATES + (t.mbAlbumId != null ? 1 : 0)) break;
+            }
+        } catch (JSONException e) {
+            // an unreadable answer is "no confident match"
+        }
+        return ids;
     }
 
     private static String credit(JSONObject release) {
@@ -124,6 +175,11 @@ public final class ArtLookup {
             if (res.code >= 500) throw new IOException("HTTP " + res.code);
         }
         return null;
+    }
+
+    /** A 5xx answer (thrown as "HTTP 503" here) means the server is busy, not that the streamer is offline. */
+    public static boolean isBusy(IOException e) {
+        return e.getMessage() != null && e.getMessage().startsWith("HTTP ");
     }
 
     static boolean isJpeg(byte[] b) {
