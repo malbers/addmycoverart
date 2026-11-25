@@ -3,7 +3,7 @@ package com.malbers.addmycoverart.core;
 /** P4 (handoff 05/06): the words the fetch screens use for each outcome. Plain text, no red: a miss is not an error. */
 public final class FetchText {
     /** Reason for an album that was skipped because the streamer went offline earlier in the run. */
-    public static final String NOT_TRIED_OFFLINE = "not tried, offline";
+    public static final String NOT_TRIED_OFFLINE = "not tried, database unreachable";
 
     private FetchText() {}
 
@@ -21,6 +21,8 @@ public final class FetchText {
                 return "No artist or album name to search with. The folder name may not be the album title.";
             case LookupResult.NO_MATCH:
                 return "Nothing on MusicBrainz by that name. The folder name may not be the album title.";
+            case LookupResult.CLOSE:
+                return "No sure match, but a close one to check: open the album and tap Find more art.";
             case LookupResult.NO_ART:
                 return "Found on MusicBrainz, but nobody has added a cover picture for it yet.";
             case LookupResult.NETWORK:

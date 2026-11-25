@@ -248,4 +248,209 @@ public class TagReaderTest {
         assertNull(TagReader.read(write("g.mp3", new byte[]{'I', 'D', '3', 2, 0, 0, 0, 0, 0, 10})).album);
         assertNull(TagReader.read(new File(tmp.getRoot(), "missing.flac")).album);
     }
+
+    // ---- 1.1.1: DSF, ID3v2.2, ID3v1, APEv2, MP4 ----
+
+    private static final byte[] JPEG = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0, 1, 2};
+
+    private static byte[] le64(long v) {
+        byte[] b = new byte[8];
+        for (int i = 0; i < 8; i++) b[i] = (byte) (v >> (8 * i));
+        return b;
+    }
+
+    @Test
+    public void dsfReadsTheId3TagAtTheEnd() throws Exception {
+        byte[] tag = id3(3, frame(3, "TALB", text(0, "Consequence Of Chaos")), frame(3, "TPE1", text(0, "Al Di Meola")),
+                frame(3, "APIC", apic(JPEG)));
+        byte[] audio = new byte[200];
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write("DSD ".getBytes(StandardCharsets.US_ASCII));
+        out.write(le64(28));
+        out.write(le64(28 + audio.length + tag.length));
+        out.write(le64(28 + audio.length)); // metadata pointer
+        out.write(audio);
+        out.write(tag);
+        File f = write("t.dsf", out.toByteArray());
+        Tags t = TagReader.read(f);
+        assertEquals("Consequence Of Chaos", t.album);
+        assertEquals("Al Di Meola", t.artist);
+        assertTrue(t.hasPicture);
+        assertNotNull(TagReader.readPicture(f));
+    }
+
+    @Test
+    public void dsfWithoutMetadataIsEmpty() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write("DSD ".getBytes(StandardCharsets.US_ASCII));
+        out.write(le64(28));
+        out.write(le64(300));
+        out.write(le64(0));
+        out.write(new byte[272]);
+        assertNull(TagReader.read(write("u.dsf", out.toByteArray())).album);
+    }
+
+    private static byte[] frame22(String id, byte[] data) throws Exception {
+        ByteArrayOutputStream b = new ByteArrayOutputStream();
+        b.write(id.getBytes(StandardCharsets.US_ASCII));
+        b.write(data.length >> 16);
+        b.write(data.length >> 8);
+        b.write(data.length);
+        b.write(data);
+        return b.toByteArray();
+    }
+
+    @Test
+    public void id3v22OldItunesFrames() throws Exception {
+        ByteArrayOutputStream pic = new ByteArrayOutputStream();
+        pic.write(0);
+        pic.write("JPG".getBytes(StandardCharsets.US_ASCII));
+        pic.write(3); // front cover
+        pic.write(0); // empty description
+        pic.write(JPEG);
+        File f = write("v22.mp3", id3(2, frame22("TAL", text(0, "Midnight Vultures")), frame22("TP1", text(1, "Beck")),
+                frame22("PIC", pic.toByteArray())));
+        Tags t = TagReader.read(f);
+        assertEquals("Midnight Vultures", t.album);
+        assertEquals("Beck", t.artist);
+        assertTrue(t.hasPicture);
+        assertArrayEquals(JPEG, TagReader.readPicture(f));
+    }
+
+    private static byte[] id3v1(String artist, String album, int track) {
+        byte[] d = new byte[128];
+        d[0] = 'T'; d[1] = 'A'; d[2] = 'G';
+        byte[] a = artist.getBytes(StandardCharsets.ISO_8859_1);
+        System.arraycopy(a, 0, d, 33, a.length);
+        byte[] b = album.getBytes(StandardCharsets.ISO_8859_1);
+        System.arraycopy(b, 0, d, 63, b.length);
+        d[126] = (byte) track;
+        return d;
+    }
+
+    @Test
+    public void id3v1OnlyMp3() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write(new byte[]{(byte) 0xFF, (byte) 0xFB, (byte) 0x90, 0});
+        out.write(new byte[300]);
+        out.write(id3v1("Buena Vista Social Club", "Buena Vista Social Club", 4));
+        Tags t = TagReader.read(write("v1.mp3", out.toByteArray()));
+        assertEquals("Buena Vista Social Club", t.album);
+        assertEquals("Buena Vista Social Club", t.artist);
+        assertEquals(Integer.valueOf(4), TagReader.readTrack(write("v1b.mp3", out.toByteArray())).track);
+    }
+
+    @Test
+    public void id3v1FillsWhatId3v2Lacks() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write(id3(3, frame(3, "TPE1", text(0, "Coldplay"))));
+        out.write(id3v1("Cold play", "Parachutes", 1));
+        Tags t = TagReader.read(write("mix.mp3", out.toByteArray()));
+        assertEquals("Coldplay", t.artist); // ID3v2 wins
+        assertEquals("Parachutes", t.album); // ID3v1 fills the gap
+    }
+
+    private static byte[] apeItem(String key, int flags, byte[] value) throws Exception {
+        ByteArrayOutputStream b = new ByteArrayOutputStream();
+        b.write(le32(value.length));
+        b.write(le32(flags));
+        b.write(key.getBytes(StandardCharsets.US_ASCII));
+        b.write(0);
+        b.write(value);
+        return b.toByteArray();
+    }
+
+    private static byte[] apeTag(byte[]... items) throws Exception {
+        ByteArrayOutputStream body = new ByteArrayOutputStream();
+        for (byte[] i : items) body.write(i);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write(body.toByteArray());
+        out.write("APETAGEX".getBytes(StandardCharsets.US_ASCII));
+        out.write(le32(2000));
+        out.write(le32(body.size() + 32));
+        out.write(le32(items.length));
+        out.write(le32(0));
+        out.write(new byte[8]);
+        return out.toByteArray();
+    }
+
+    @Test
+    public void apeTagInMonkeysAudio() throws Exception {
+        ByteArrayOutputStream cover = new ByteArrayOutputStream();
+        cover.write("cover.jpg".getBytes(StandardCharsets.US_ASCII));
+        cover.write(0);
+        cover.write(JPEG);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write("MAC ".getBytes(StandardCharsets.US_ASCII));
+        out.write(new byte[200]);
+        out.write(apeTag(
+                apeItem("Artist", 0, "After Forever".getBytes(StandardCharsets.UTF_8)),
+                apeItem("Album", 0, "After Forever".getBytes(StandardCharsets.UTF_8)),
+                apeItem("Track", 0, "3/11".getBytes(StandardCharsets.UTF_8)),
+                apeItem("Cover Art (Front)", 2, cover.toByteArray())));
+        File f = write("a.ape", out.toByteArray());
+        Tags t = TagReader.read(f);
+        assertEquals("After Forever", t.album);
+        assertEquals("After Forever", t.artist);
+        assertTrue(t.hasPicture);
+        assertArrayEquals(JPEG, TagReader.readPicture(f));
+        assertEquals(Integer.valueOf(3), TagReader.readTrack(f).track);
+    }
+
+    @Test
+    public void apeTagBeforeId3v1InWavPack() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write("wvpk".getBytes(StandardCharsets.US_ASCII));
+        out.write(new byte[100]);
+        out.write(apeTag(apeItem("Album Artist", 0, "Alan Parsons Project".getBytes(StandardCharsets.UTF_8)),
+                apeItem("Album", 0, "Eye In The Sky".getBytes(StandardCharsets.UTF_8))));
+        out.write(id3v1("Other", "Other", 0));
+        Tags t = TagReader.read(write("w.wv", out.toByteArray()));
+        assertEquals("Eye In The Sky", t.album);
+        assertEquals("Alan Parsons Project", t.bestArtist());
+    }
+
+    private static byte[] atom(String type, byte[]... children) throws Exception {
+        ByteArrayOutputStream body = new ByteArrayOutputStream();
+        for (byte[] c : children) body.write(c);
+        ByteArrayOutputStream b = new ByteArrayOutputStream();
+        b.write(be32(body.size() + 8));
+        b.write(type.getBytes(StandardCharsets.ISO_8859_1));
+        b.write(body.toByteArray());
+        return b.toByteArray();
+    }
+
+    private static byte[] data(int type, byte[] payload) throws Exception {
+        ByteArrayOutputStream b = new ByteArrayOutputStream();
+        b.write(be32(type));
+        b.write(new byte[4]);
+        b.write(payload);
+        return atom("data", b.toByteArray());
+    }
+
+    @Test
+    public void m4aItunesAtoms() throws Exception {
+        byte[] ilst = atom("ilst",
+                atom("©alb", data(1, "Parachutes".getBytes(StandardCharsets.UTF_8))),
+                atom("©ART", data(1, "Coldplay".getBytes(StandardCharsets.UTF_8))),
+                atom("trkn", data(0, new byte[]{0, 0, 0, 5, 0, 10, 0, 0})),
+                atom("----", atom("mean", new byte[4], "com.apple.iTunes".getBytes(StandardCharsets.UTF_8)),
+                        atom("name", new byte[4], "MusicBrainz Album Id".getBytes(StandardCharsets.UTF_8)),
+                        data(1, "mb-m4a".getBytes(StandardCharsets.UTF_8))),
+                atom("covr", data(13, JPEG)));
+        byte[] meta = atom("meta", new byte[4], atom("hdlr", new byte[25]), ilst);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write(atom("ftyp", "M4A ".getBytes(StandardCharsets.US_ASCII), new byte[4]));
+        out.write(atom("mdat", new byte[300])); // audio before moov, as many encoders write it
+        out.write(atom("moov", atom("mvhd", new byte[100]), atom("udta", meta)));
+        File f = write("p.m4a", out.toByteArray());
+        Tags t = TagReader.read(f);
+        assertEquals("Parachutes", t.album);
+        assertEquals("Coldplay", t.artist);
+        assertEquals("mb-m4a", t.mbAlbumId);
+        assertTrue(t.hasPicture);
+        assertArrayEquals(JPEG, TagReader.readPicture(f));
+        assertEquals(Integer.valueOf(5), TagReader.readTrack(f).track);
+        assertEquals(Integer.valueOf(10), TagReader.readTrack(f).trackTotal);
+    }
 }

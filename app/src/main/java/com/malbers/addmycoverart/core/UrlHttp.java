@@ -13,6 +13,9 @@ public final class UrlHttp implements Http {
     private static final int MAX_BODY = 15 * 1024 * 1024;
 
     private static final int RETRIES = 3;
+    static final int TRANSPORT_RETRIES = 2;
+    /** Cover Art Archive pictures are served by archive.org, which can take a while to start a reply. */
+    private static final int READ_TIMEOUT_MS = 20000, ARCHIVE_READ_TIMEOUT_MS = 30000;
 
     private final String userAgent;
     private final long backoffMs;
@@ -50,7 +53,8 @@ public final class UrlHttp implements Http {
                 return r;
             } catch (IOException e) {
                 lastError = e;
-                if (attempt >= 1) throw e;
+                // 1.1.0.1: two retries for a transport failure (was one); archive.org is sometimes slow, not down
+                if (attempt >= TRANSPORT_RETRIES) throw e;
             }
         }
         throw lastError != null ? lastError : new IOException("gave up");
@@ -64,7 +68,7 @@ public final class UrlHttp implements Http {
             c.setRequestProperty("User-Agent", userAgent);
             c.setRequestProperty("Accept", "application/json, image/*");
             c.setConnectTimeout(10000);
-            c.setReadTimeout(20000);
+            c.setReadTimeout(u.getHost().endsWith("archive.org") ? ARCHIVE_READ_TIMEOUT_MS : READ_TIMEOUT_MS);
             c.setInstanceFollowRedirects(false);
             try {
                 int code = c.getResponseCode();
@@ -74,6 +78,9 @@ public final class UrlHttp implements Http {
                 }
                 InputStream in = code < 400 ? c.getInputStream() : c.getErrorStream();
                 return new Response(code, in == null ? new byte[0] : readAll(in));
+            } catch (IOException e) {
+                // 1.1.0.1: keep which host failed, so the screen can say so instead of "offline"
+                throw e instanceof NetFailure ? e : new NetFailure(u.getHost(), e);
             } finally {
                 c.disconnect();
             }

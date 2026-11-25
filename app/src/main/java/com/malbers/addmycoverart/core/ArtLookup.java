@@ -28,14 +28,47 @@ public final class ArtLookup {
         this.http = http;
     }
 
-    public LookupResult find(Album a, Tags t) {
-        String artist = t.bestArtist();
-        String album = t.album;
-        if (artist == null || album == null) {
-            String[] g = FolderNameParser.guess(a.dir);
-            if (artist == null) artist = g[0];
-            if (album == null) album = g[1];
+    /**
+     * What to search MusicBrainz for, best first, never the same pair twice: the tags (gaps filled from the
+     * folder name), then the folder name alone, then the tag album with the folder's artist (a typo in the
+     * artist tag, e.g. Michael's "Cold play" in a "Coldplay" folder). Empty when there is no album name at all.
+     */
+    public static List<String[]> searchTerms(Album a, Tags t) {
+        String[] g = FolderNameParser.guess(a.dir);
+        String tagAlbum = FolderNameParser.isPlaceholder(t.album) ? null : t.album;
+        String tagArtist = t.bestArtist();
+        List<String[]> out = new ArrayList<>();
+        addTerm(out, tagArtist != null ? tagArtist : g[0], tagAlbum != null ? tagAlbum : g[1]);
+        addTerm(out, g[0], g[1]);
+        addTerm(out, g[0], tagAlbum);
+        return out;
+    }
+
+    private static void addTerm(List<String[]> out, String artist, String album) {
+        if (artist == null || album == null || Text.norm(artist).isEmpty() || Text.norm(album).isEmpty()) return;
+        for (String[] s : out) {
+            if (Text.norm(s[0]).equals(Text.norm(artist)) && Text.norm(s[1]).equals(Text.norm(album))) return;
         }
+        out.add(new String[]{artist, album});
+    }
+
+    /** "“Album” by Artist", or two of them joined with "or"; null when there was nothing to search for. */
+    public static String describeSearch(Album a, Tags t) {
+        List<String[]> terms = searchTerms(a, t);
+        if (terms.isEmpty()) return null;
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < Math.min(2, terms.size()); i++) {
+            if (i > 0) b.append(", or ");
+            b.append('“').append(searchTitle(terms.get(i)[1])).append("” by ").append(terms.get(i)[0]);
+        }
+        return b.toString();
+    }
+
+    public LookupResult find(Album a, Tags t) {
+        List<String[]> terms = searchTerms(a, t);
+        String[] g = FolderNameParser.guess(a.dir);
+        String artist = !terms.isEmpty() ? terms.get(0)[0] : t.bestArtist() != null ? t.bestArtist() : g[0];
+        String album = !terms.isEmpty() ? terms.get(0)[1] : t.album != null ? t.album : g[1];
         LookupResult inFiles = inFiles(a, artist, album);
         if (inFiles != null) return inFiles;
         try {
@@ -43,9 +76,26 @@ public final class ArtLookup {
                 LookupResult r = byReleaseId(t.mbAlbumId, artist, album);
                 if (r != null) return r;
             }
-            if (artist == null || album == null) return LookupResult.notFound(LookupResult.NO_TAGS, artist, album);
-            List<JSONObject> candidates = search(artist, album, a.trackCount);
-            if (candidates.isEmpty()) return LookupResult.notFound(LookupResult.NO_MATCH, artist, album);
+            if (terms.isEmpty()) return LookupResult.notFound(LookupResult.NO_TAGS, artist, album);
+            List<JSONObject> candidates = new ArrayList<>();
+            for (String[] s : terms) {
+                candidates = search(s[0], s[1], a.trackCount);
+                if (!candidates.isEmpty()) {
+                    artist = s[0];
+                    album = s[1];
+                    break;
+                }
+            }
+            if (candidates.isEmpty()) {
+                // Fetch all stays strict (it saves without asking), but says when there's a close match to check
+                boolean close = false;
+                try {
+                    close = !closeCandidates(a, t, 1).isEmpty();
+                } catch (IOException ignored) {
+                    // the miss itself is still a plain "no match"
+                }
+                return LookupResult.notFound(close ? LookupResult.CLOSE : LookupResult.NO_MATCH, artist, album);
+            }
             for (int i = 0; i < Math.min(MAX_CANDIDATES, candidates.size()); i++) {
                 LookupResult r = cover("release/" + candidates.get(i).getString("id"), artist, album);
                 if (r != null) return r;
@@ -57,7 +107,7 @@ public final class ArtLookup {
             }
             return LookupResult.notFound(LookupResult.NO_ART, artist, album);
         } catch (IOException e) {
-            return LookupResult.notFound(isBusy(e) ? LookupResult.BUSY : LookupResult.NETWORK, artist, album);
+            return isBusy(e) ? LookupResult.notFound(LookupResult.BUSY, artist, album) : LookupResult.network(e, artist, album);
         } catch (JSONException e) {
             return LookupResult.notFound(LookupResult.NO_MATCH, artist, album);
         }
@@ -93,7 +143,8 @@ public final class ArtLookup {
     /** Releases that match title and artist with a high score, closest track count first. */
     private List<JSONObject> search(String artist, String album, int trackCount) throws IOException, JSONException {
         // Search on the bare title: "1967-1970 (Disc 1)" scores below the bar, "1967-1970" scores 100.
-        String q = "release:\"" + clean(searchTitle(album)) + "\" AND artist:\"" + clean(artist) + "\"";
+        // searchTitle also turns a library-sort artist ("Police, The") back into "The Police"
+        String q = "release:\"" + clean(searchTitle(album)) + "\" AND artist:\"" + clean(searchTitle(artist)) + "\"";
         Http.Response res = http.get(MB + "release/?query=" + enc(q) + "&fmt=json&limit=25");
         if (res.code != 200) {
             // 503 = MusicBrainz rate limiting or maintenance; treat like any other transport failure.
@@ -133,26 +184,198 @@ public final class ArtLookup {
      * {@link #MAX_CANDIDATES} confident search matches. Empty when there is no confident match. Network trouble throws.
      */
     public List<String> releaseCandidates(Album a, Tags t) throws IOException {
-        String artist = t.bestArtist();
-        String album = t.album;
-        if (artist == null || album == null) {
-            String[] g = FolderNameParser.guess(a.dir);
-            if (artist == null) artist = g[0];
-            if (album == null) album = g[1];
-        }
         List<String> ids = new ArrayList<>();
         if (t.mbAlbumId != null) ids.add(t.mbAlbumId);
-        if (artist == null || album == null) return ids;
-        try {
-            for (JSONObject r : search(artist, album, a.trackCount)) {
-                String id = r.optString("id");
-                if (!id.isEmpty() && !ids.contains(id)) ids.add(id);
-                if (ids.size() >= MAX_CANDIDATES + (t.mbAlbumId != null ? 1 : 0)) break;
+        for (String[] s : searchTerms(a, t)) {
+            int before = ids.size();
+            try {
+                for (JSONObject r : search(s[0], s[1], a.trackCount)) {
+                    String id = r.optString("id");
+                    if (!id.isEmpty() && !ids.contains(id)) ids.add(id);
+                    if (ids.size() >= MAX_CANDIDATES + (t.mbAlbumId != null ? 1 : 0)) break;
+                }
+            } catch (JSONException e) {
+                // an unreadable answer is "no confident match"
             }
-        } catch (JSONException e) {
-            // an unreadable answer is "no confident match"
+            if (ids.size() > before) break; // the first search that matched decides
         }
         return ids;
+    }
+
+    // ---- 1.1.1 close matches (Michael 2026-11-24: "even a directional cover might be fine ... I get to decide") ----
+
+    static final int CLOSE_SCORE = 70;
+    static final int MAX_CLOSE = 3;
+
+    /** A release that is probably, not certainly, the album: shown on the album page for Michael to check. */
+    public static final class Close {
+        public final String releaseId;
+        /** "Parachutes (2000, GB, CD) by Coldplay" */
+        public final String label;
+
+        Close(String releaseId, String label) {
+            this.releaseId = releaseId;
+            this.label = label;
+        }
+    }
+
+    /**
+     * Looser search for when there is no confident match: words instead of an exact title, a lower score, and a
+     * title and artist that only need to overlap. One release per album (release group), best first. Only for the
+     * album page, where nothing is saved until Michael picks it; Fetch all stays strict.
+     */
+    public List<Close> closeCandidates(Album a, Tags t) throws IOException {
+        return closeCandidates(a, t, Integer.MAX_VALUE);
+    }
+
+    /** As above, trying at most {@code maxSearches} of the search terms (Fetch all uses 1, to stay quick). */
+    List<Close> closeCandidates(Album a, Tags t, int maxSearches) throws IOException {
+        List<Close> out = new ArrayList<>();
+        List<String> groups = new ArrayList<>();
+        List<String[]> terms = searchTerms(a, t);
+        for (String[] s : terms.subList(0, Math.min(maxSearches, terms.size()))) {
+            String q = "release:(" + words(searchTitle(s[1])) + ") AND artist:(" + words(searchTitle(s[0])) + ")";
+            Http.Response res = http.get(MB + "release/?query=" + enc(q) + "&fmt=json&limit=25");
+            if (res.code >= 500) throw new IOException("HTTP " + res.code);
+            if (res.code != 200) continue;
+            try {
+                JSONArray releases = new JSONObject(new String(res.body, StandardCharsets.UTF_8)).optJSONArray("releases");
+                if (releases == null) continue;
+                for (int i = 0; i < releases.length() && out.size() < MAX_CLOSE; i++) {
+                    JSONObject r = releases.getJSONObject(i);
+                    if (r.optInt("score") < CLOSE_SCORE) continue;
+                    if (!near(r.optString("title"), s[1]) || !near(credit(r), s[0])) continue;
+                    JSONObject rg = r.optJSONObject("release-group");
+                    String group = rg != null ? rg.optString("id") : r.optString("id");
+                    if (groups.contains(group)) continue;
+                    groups.add(group);
+                    out.add(new Close(r.optString("id"), label(r)));
+                }
+            } catch (JSONException e) {
+                // unreadable answer: nothing close from this search
+            }
+            if (out.size() >= MAX_CLOSE) break;
+        }
+        return out;
+    }
+
+    static final int MAX_EDITIONS = 8;
+
+    /**
+     * tags4 (D3, "More editions"): every edition worth a look, sure matches first, then close ones, by release (not
+     * by album, so several editions of the same album can show). Up to {@link #MAX_EDITIONS}. Only on Michael's tap.
+     */
+    public List<Close> editions(Album a, Tags t) throws IOException {
+        List<Close> out = new ArrayList<>();
+        List<String> ids = new ArrayList<>();
+        List<String[]> terms = searchTerms(a, t);
+        try {
+            for (String[] s : terms) {
+                for (JSONObject r : search(s[0], s[1], a.trackCount)) {
+                    if (out.size() >= MAX_EDITIONS) return out;
+                    if (ids.contains(r.optString("id"))) continue;
+                    ids.add(r.optString("id"));
+                    out.add(new Close(r.optString("id"), label(r)));
+                }
+            }
+            for (String[] s : terms) {
+                String q = "release:(" + words(searchTitle(s[1])) + ") AND artist:(" + words(searchTitle(s[0])) + ")";
+                Http.Response res = http.get(MB + "release/?query=" + enc(q) + "&fmt=json&limit=25");
+                if (res.code >= 500) throw new IOException("HTTP " + res.code);
+                if (res.code != 200) continue;
+                JSONArray releases = new JSONObject(new String(res.body, StandardCharsets.UTF_8)).optJSONArray("releases");
+                if (releases == null) continue;
+                for (int i = 0; i < releases.length() && out.size() < MAX_EDITIONS; i++) {
+                    JSONObject r = releases.getJSONObject(i);
+                    if (r.optInt("score") < CLOSE_SCORE || ids.contains(r.optString("id"))) continue;
+                    if (!near(r.optString("title"), s[1]) || !near(credit(r), s[0])) continue;
+                    ids.add(r.optString("id"));
+                    out.add(new Close(r.optString("id"), label(r)));
+                }
+                if (out.size() >= MAX_EDITIONS) break;
+            }
+        } catch (JSONException e) {
+            // keep what we have
+        }
+        return out;
+    }
+
+    /**
+     * Title or artist "close": equal; every word of the shorter one is in the longer one ("Jazz Gold" in
+     * "Jazz Gold - Charlie Parker"); or a small spelling difference ("Parachute" / "Parachutes"). Not "Help" vs
+     * "Helpless", not "Live at Red Rocks" vs "Live at Luther College": those are other albums.
+     */
+    static boolean near(String found, String want) {
+        String f = Text.norm(found), w = Text.norm(want);
+        if (f.isEmpty() || w.isEmpty()) return false;
+        if (f.equals(w)) return true;
+        java.util.List<String> fw = java.util.Arrays.asList(f.split(" "));
+        java.util.List<String> ww = java.util.Arrays.asList(w.split(" "));
+        java.util.List<String> shorter = fw.size() <= ww.size() ? fw : ww, longer = shorter == fw ? ww : fw;
+        if (shorter.size() >= 2 || shorter.get(0).length() >= 4) {
+            if (longer.containsAll(shorter)) return true;
+        }
+        int len = Math.max(f.length(), w.length());
+        if (len >= 6 && distance(f, w) <= Math.max(1, len / 10)) return true;
+        // tags3: same words but one spelled differently from the 5th letter on (Michael's "Midnight Vultures" is
+        // Beck's "Midnite Vultures"). Needs 2+ words, so "Help" vs "Helpless" stays apart.
+        if (fw.size() != ww.size() || fw.size() < 2) return false;
+        int differ = 0;
+        for (int i = 0; i < fw.size(); i++) {
+            String a = fw.get(i), b = ww.get(i);
+            if (a.equals(b)) continue;
+            if (++differ > 1) return false;
+            if (a.length() < 5 || b.length() < 5 || !a.regionMatches(0, b, 0, 4) || Math.abs(a.length() - b.length()) > 2) return false;
+        }
+        return true;
+    }
+
+    /** Edit distance (insert, delete, change one character). */
+    static int distance(String a, String b) {
+        int[] prev = new int[b.length() + 1], cur = new int[b.length() + 1];
+        for (int j = 0; j <= b.length(); j++) prev[j] = j;
+        for (int i = 1; i <= a.length(); i++) {
+            cur[0] = i;
+            for (int j = 1; j <= b.length(); j++) {
+                int c = a.charAt(i - 1) == b.charAt(j - 1) ? 0 : 1;
+                cur[j] = Math.min(Math.min(cur[j - 1] + 1, prev[j] + 1), prev[j - 1] + c);
+            }
+            int[] t = prev;
+            prev = cur;
+            cur = t;
+        }
+        return prev[b.length()];
+    }
+
+    /**
+     * Lucene-safe words for a loose query, each 4+ letter word fuzzy ("parachute~" finds "Parachutes", "gypsy~"
+     * finds "Gipsy"; measured on MusicBrainz 2026-11-24, where the exact search found neither).
+     */
+    static String words(String s) {
+        String w = s.replaceAll("[+\\-!(){}\\[\\]^\"~*?:\\\\/&|]", " ").replaceAll("\\s+", " ").trim();
+        if (w.isEmpty()) return "_";
+        StringBuilder b = new StringBuilder();
+        for (String x : w.split(" ")) {
+            if (b.length() > 0) b.append(' ');
+            b.append(x);
+            if (x.length() >= 4 && !x.equalsIgnoreCase("and") && !x.equalsIgnoreCase("not")) b.append('~');
+        }
+        return b.toString();
+    }
+
+    static String label(JSONObject r) {
+        List<String> bits = new ArrayList<>();
+        String date = r.optString("date");
+        if (date.length() >= 4) bits.add(date.substring(0, 4));
+        if (!r.optString("country").isEmpty()) bits.add(r.optString("country"));
+        JSONArray media = r.optJSONArray("media");
+        if (media != null && media.length() > 0) {
+            JSONObject m = media.optJSONObject(0);
+            String fmt = m == null ? "" : m.optString("format");
+            if (!fmt.isEmpty()) bits.add(media.length() > 1 ? media.length() + "×" + fmt : fmt);
+        }
+        String c = credit(r);
+        return r.optString("title") + (bits.isEmpty() ? "" : " (" + String.join(", ", bits) + ")") + (c.isEmpty() ? "" : " by " + c);
     }
 
     private static String credit(JSONObject release) {

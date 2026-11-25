@@ -62,6 +62,21 @@ public class UrlHttpTest {
     }
 
     @Test
+    public void transportFailureNamesTheHost() throws Exception {
+        // nothing listens on this port: connection refused, wrapped with the host, after two retries
+        java.net.ServerSocket s = new java.net.ServerSocket(0, 1, InetAddress.getLoopbackAddress());
+        int port = s.getLocalPort();
+        s.close();
+        try {
+            new UrlHttp("t", 1).get("http://127.0.0.1:" + port + "/x");
+            fail("expected a failure");
+        } catch (NetFailure e) {
+            assertEquals("127.0.0.1", e.host);
+            assertTrue(NetFailure.looksOffline(e));
+        }
+    }
+
+    @Test
     public void notFoundIsNotRetried() throws Exception {
         Http.Response r = new UrlHttp("t", 10).get(serve(404, 200));
         assertEquals(404, r.code);

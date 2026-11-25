@@ -103,9 +103,9 @@ public class MainActivity extends Activity {
 
     private void start() {
         if (!hasAccess()) { showAccess(); return; }
-        String last = prefs.getString("last", null);
-        File f = last == null ? null : new File(last);
-        showBrowse(f != null && f.isDirectory() && f.canRead() ? f : null);
+        // tags5: a fresh launch opens the main screen (Michael kept landing on the last folder he'd scanned,
+        // "even if I wasn't there last time"); Back from an album still returns to where he was
+        showBrowse(null);
     }
 
     // ---------- frame ----------
@@ -996,6 +996,12 @@ public class MainActivity extends Activity {
     private static final int ART_IDLE = 0, ART_LOOKING = 1, ART_FOUND = 2, ART_FRONT_ONLY = 3, ART_NONE = 4,
             ART_NO_PICTURES = 5, ART_NETWORK = 6, ART_SAVED = 7, ART_BUSY = 8;
     private int artState = ART_IDLE;
+    /** 1.1.0.1: why the last Find more art couldn't reach the database (host + cause), shown under the panel title. */
+    private String artNetDetail;
+    /** What Find more art searched for ("“Album” by Artist"), for the not-found panel; null = nothing to search. */
+    private String artSearched;
+    /** 1.1.0.1: the same for a Fetch run that stopped on the network. */
+    private volatile String fetchNetDetail;
     private int artGen;
     private List<CaaExtras.Extra> found = new ArrayList<>();
     private File[] foundThumb = new File[0], foundBig = new File[0];
@@ -1003,6 +1009,17 @@ public class MainActivity extends Activity {
     /** "Bigger online": the online front is clearly larger than the album's own cover. */
     private boolean frontBigger;
     private String foundRelease;
+    /** 1.1.1 close matches: all of them, their previews and full-size files, and which one is shown (-1 = a sure match). */
+    private List<ExtrasLookup.Match> closeMatches = new ArrayList<>();
+    private List<File[]> closeThumbs = new ArrayList<>(), closeBigs = new ArrayList<>();
+    private int closeIdx = -1;
+    /** tags4 D1: which found pictures are already in the album folder (same bytes), per match for close/editions. */
+    private boolean[] already = new boolean[0];
+    private List<boolean[]> closeAlready = new ArrayList<>();
+    /** tags4 D3: browsing "More editions" (vs close matches); the state to go back to when there are none. */
+    private boolean editionsMode;
+    /** tags5: what the looking-up panel says ("Looking for other editions…"); null = "Looking up <album>…". */
+    private String lookingText;
     private int savedCount;
     private boolean savedFolderJpg;
     private final java.util.Set<File> justSaved = new java.util.HashSet<>();
@@ -1127,12 +1144,18 @@ public class MainActivity extends Activity {
         else if (!buttons.isEmpty()) buttons.get(buttons.size() - 1).requestFocus();
     }
 
+    /** tags4 D3: a visible pill (Michael's UI rule: no text-only buttons). */
+    private TextView moreEditionsButton() {
+        return Theme.button(this, "Fetch more editions", Theme.GHOST, v -> startEditions());
+    }
+
     /** Fills the panel for the current state; returns the primary button (or null) and adds secondary buttons. */
     private TextView buildPanel(LinearLayout panel, Album a, boolean has, List<View> buttons) {
         String saveWhere = "Saves into " + a.dir.getName() + "/Scan/" + (has ? "" : " (front as folder.jpg)") + ". Music files are never touched.";
         switch (artState) {
             case ART_LOOKING: {
-                panel.addView(Theme.oneLine(Theme.text(this, "Looking up " + a.dir.getName() + "…", 24, 600, Theme.TEXT)));
+                panel.addView(Theme.oneLine(Theme.text(this, lookingText != null ? lookingText
+                        : "Looking up " + a.dir.getName() + "…", 24, 600, Theme.TEXT)));
                 LinearLayout row = Ui.row(this);
                 row.setPadding(0, Theme.d(14), 0, 0);
                 for (int i = 0; i < 7; i++) {
@@ -1161,13 +1184,29 @@ public class MainActivity extends Activity {
                 return null;
             }
             case ART_FOUND: {
-                LinearLayout head = Ui.row(this);
-                head.setGravity(Gravity.NO_GRAVITY);
-                head.setBaselineAligned(true);
-                head.addView(Theme.text(this, FetchText.plural(found.size(), "picture") + " found", 24, 600, Theme.TEXT));
-                // Michael 2026-11-23: tap = see it full screen, the check = leave it in or out ("you wanna see before selecting")
-                head.addView(Theme.oneLine(Theme.text(this, "Tap one to see it. The check leaves it out.", 17, 400, Theme.TEXT_3)), Ui.wrap(Theme.d(14)));
-                panel.addView(head);
+                if (closeIdx >= 0) {
+                    // 1.1.1 close match: say plainly it may be the wrong album, nothing selected until Michael picks
+                    // tags4 D3: the same browser for "More editions"
+                    String what = editionsMode ? "Edition " : "Close match ";
+                    String head = what + (closeIdx + 1) + " of " + closeMatches.size() + ": " + closeMatches.get(closeIdx).label;
+                    TextView ct = Theme.scrolling(Theme.text(this, head, 22, 600, editionsMode ? Theme.TEXT : Theme.ACCENT));
+                    panel.addView(ct);
+                    panel.addView(Theme.oneLine(Theme.text(this, (editionsMode
+                            ? FetchText.plural(found.size(), "picture") + ", nothing picked yet."
+                            : "No sure match, so check it’s your album.") + " Tap one to see it, the check picks it.", 17, 400, Theme.TEXT_3)));
+                    if (closeMatches.size() > 1) {
+                        buttons.add(Theme.button(this, editionsMode ? "Next edition" : "Another match",
+                                Theme.GHOST, v -> showClose(closeIdx + 1)));
+                    }
+                } else {
+                    LinearLayout head = Ui.row(this);
+                    head.setGravity(Gravity.NO_GRAVITY);
+                    head.setBaselineAligned(true);
+                    head.addView(Theme.text(this, FetchText.plural(found.size(), "picture") + " found", 24, 600, Theme.TEXT));
+                    // Michael 2026-11-23: tap = see it full screen, the check = leave it in or out ("you wanna see before selecting")
+                    head.addView(Theme.oneLine(Theme.text(this, "Tap one to see it. The check leaves it out.", 17, 400, Theme.TEXT_3)), Ui.wrap(Theme.d(14)));
+                    panel.addView(head);
+                }
                 panel.addView(foundRow());
                 panel.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1));
                 panel.addView(Theme.monoText(this, saveWhere, 15, 400, Theme.TEXT_3));
@@ -1175,28 +1214,38 @@ public class MainActivity extends Activity {
                     artState = ART_IDLE;
                     renderAlbum();
                 }));
+                if (closeIdx < 0) buttons.add(moreEditionsButton());
                 savePrimary = Theme.button(this, "", Theme.PRIMARY, v -> saveSelected());
                 updateSaveLabel();
                 return savePrimary;
             }
             case ART_FRONT_ONLY:
                 panelText(panel, "Only the front cover is online",
-                        "The Cover Art Archive has just the front for this release, and you already have it. Nothing more to add.", null);
+                        "The Cover Art Archive has just the front for this release, and you already have it. "
+                                + "Other editions may have more: try Fetch more editions.", null);
+                buttons.add(moreEditionsButton());
                 return Theme.wide(Theme.button(this, "Done", Theme.PRIMARY, v -> artDone()));
             case ART_NONE:
-                panelText(panel, "This album isn’t in the database", "No match on MusicBrainz for “" + a.dir.getName() + "” by "
-                        + parentNameOrEmpty(a) + ". If the folder name differs from the album title, renaming the folder can help.", null);
+                // 1.1.1: say what was actually searched (Václav H. read the shelf folder "A" as the artist)
+                panelText(panel, "This album isn’t in the database", artSearched == null
+                        ? "There’s no album name to search for: the tags don’t have one, and neither does the folder name. "
+                                + "Naming the folder Artist - Album can help."
+                        : "No match on MusicBrainz for " + artSearched + ". If the tags or the folder name differ from the "
+                                + "album’s real title, fixing them can help.", null);
                 return Theme.wide(Theme.button(this, "Done", Theme.PRIMARY, v -> artDone()));
             case ART_NO_PICTURES:
                 panelText(panel, "No pictures for this album yet",
-                        "MusicBrainz knows this album, but nobody has added pictures of it to the Cover Art Archive.", null);
+                        "MusicBrainz knows this album, but nobody has added pictures of this edition to the Cover Art "
+                                + "Archive. Other editions may have some: try Fetch more editions.", null);
+                buttons.add(moreEditionsButton());
                 return Theme.wide(Theme.button(this, "Done", Theme.PRIMARY, v -> artDone()));
             case ART_BUSY:
                 panelText(panel, "The cover database is busy", "It asked us to wait a moment. Try again in a minute. Nothing was changed.", null);
                 buttons.add(Theme.button(this, "Done", Theme.GHOST, v -> artDone()));
                 return Theme.button(this, "Try again", Theme.PRIMARY, v -> startFind());
             case ART_NETWORK:
-                panelText(panel, "Couldn’t reach the cover database", "The streamer seems to be offline. Nothing was changed.", null);
+                panelText(panel, "Couldn’t reach the cover database", (artNetDetail != null ? artNetDetail
+                        : "The streamer seems to be offline.") + " Nothing was changed.", null);
                 buttons.add(Theme.button(this, "Done", Theme.GHOST, v -> artDone()));
                 return Theme.button(this, "Try again", Theme.PRIMARY, v -> startFind());
             case ART_SAVED: {
@@ -1301,19 +1350,34 @@ public class MainActivity extends Activity {
         Album a = album;
         boolean has = artFile(a) != null;
         int gen = ++artGen;
+        lookingText = null;
         artState = ART_LOOKING;
         renderAlbum();
         new Thread(() -> {
             UrlHttp http = new UrlHttp(BuildConfig.USER_AGENT);
             com.malbers.addmycoverart.core.Tags t = com.malbers.addmycoverart.core.TagReader.read(a.firstAudio);
             ExtrasLookup.Result r = new ExtrasLookup(http).find(a, t, has);
+            String searched = com.malbers.addmycoverart.core.ArtLookup.describeSearch(a, t);
+            MatchFiles mf = new MatchFiles();
             int state;
             List<CaaExtras.Extra> x = r.extras;
             File[] thumbs = new File[x.size()], bigs = new File[x.size()];
+            boolean[] alreadyTmp = new boolean[x.size()];
             boolean bigger = false;
+            String netDetail = r.detail;
             if (r.state == ExtrasLookup.NETWORK) state = ART_NETWORK;
             else if (r.state == ExtrasLookup.BUSY) state = ART_BUSY;
             else if (r.state == ExtrasLookup.NOT_IN_DATABASE) state = ART_NONE;
+            else if (r.state == ExtrasLookup.CLOSE) {
+                // 1.1.1 close matches: previews for every match, so "Another match" switches at once
+                state = ART_FOUND;
+                try {
+                    mf.load(a, r, http, gen);
+                } catch (java.io.IOException e) {
+                    state = com.malbers.addmycoverart.core.ArtLookup.isBusy(e) ? ART_BUSY : ART_NETWORK;
+                    if (state == ART_NETWORK) netDetail = com.malbers.addmycoverart.core.NetFailure.describe(e, new Date());
+                }
+            }
             else if (r.state == ExtrasLookup.NO_PICTURES || x.isEmpty()) state = ART_NO_PICTURES;
             else {
                 state = ART_FOUND;
@@ -1329,13 +1393,27 @@ public class MainActivity extends Activity {
                     }
                 } catch (java.io.IOException e) {
                     state = com.malbers.addmycoverart.core.ArtLookup.isBusy(e) ? ART_BUSY : ART_NETWORK;
+                    if (state == ART_NETWORK) netDetail = com.malbers.addmycoverart.core.NetFailure.describe(e, new Date());
                 }
                 if (state == ART_FOUND && has && CaaExtras.frontOnly(x) && !bigger) state = ART_FRONT_ONLY;
+                // tags5: "Already saved" is checked after the pictures show (fetchBigs), not before
             }
+            boolean[] alr = alreadyTmp;
             int st = state;
             boolean big = bigger;
+            String nd = netDetail;
             runOnUiThread(() -> {
                 if (gen != artGen || album != a || screen != Screen.ALBUM) return;
+                artNetDetail = nd;
+                artSearched = searched;
+                editionsMode = false;
+                if (r.state == ExtrasLookup.CLOSE && st == ART_FOUND) {
+                    adoptMatches(r, mf);
+                    return;
+                }
+                closeMatches = new ArrayList<>();
+                closeIdx = -1;
+                already = alr;
                 found = x;
                 foundRelease = r.releaseId;
                 foundThumb = thumbs;
@@ -1344,7 +1422,8 @@ public class MainActivity extends Activity {
                 selected = new boolean[x.size()];
                 for (int i = 0; i < x.size(); i++) {
                     // everything selected, except the online front of an album that has a cover unless it is bigger
-                    selected[i] = !(has && CaaExtras.FRONT.equals(x.get(i).kind)) || big;
+                    // tags4 D1: and never what's already in the folder
+                    selected[i] = !alr[i] && (!(has && CaaExtras.FRONT.equals(x.get(i).kind)) || big);
                 }
                 artState = st;
                 renderAlbum();
@@ -1353,21 +1432,141 @@ public class MainActivity extends Activity {
         }, "find-art").start();
     }
 
-    /** After showing the previews: the 1200 pictures, in the background, for the viewer and for saving. */
+    /** Previews, full-size files (when needed) and "already saved" marks for each close match or edition. */
+    private final class MatchFiles {
+        final List<File[]> thumbs = new ArrayList<>(), bigs = new ArrayList<>();
+        final List<boolean[]> already = new ArrayList<>();
+
+        /** Background thread only. */
+        void load(Album a, ExtrasLookup.Result r, UrlHttp http, int gen) throws java.io.IOException {
+            for (ExtrasLookup.Match m : r.close) {
+                File cache = extrasCache(m.releaseId);
+                File[] th = new File[m.extras.size()], bg = new File[m.extras.size()];
+                for (int i = 0; i < th.length && gen == artGen; i++) {
+                    th[i] = download(http, m.extras.get(i).thumbUrl, new File(cache, i + "-250.jpg"));
+                }
+                thumbs.add(th);
+                bigs.add(bg);
+                already.add(new boolean[th.length]); // filled in by fetchBigs when this one is shown (tags5)
+            }
+        }
+    }
+
+    /** UI thread: browse these close matches (or editions, {@link #editionsMode}), starting with the first. */
+    private void adoptMatches(ExtrasLookup.Result r, MatchFiles mf) {
+        closeMatches = r.close;
+        closeThumbs = mf.thumbs;
+        closeBigs = mf.bigs;
+        closeAlready = mf.already;
+        showClose(0);
+    }
+
+    /**
+     * 1.1.1: show close match {@code i}. Nothing is selected: Michael picks, or moves on ("even a directional cover
+     * might be fine ... I can still decline or say this is wrong").
+     */
+    private void showClose(int i) {
+        if (closeMatches.isEmpty()) return;
+        closeIdx = i % closeMatches.size();
+        ExtrasLookup.Match m = closeMatches.get(closeIdx);
+        found = m.extras;
+        foundRelease = m.releaseId;
+        foundThumb = closeThumbs.get(closeIdx);
+        foundBig = closeBigs.get(closeIdx);
+        already = closeAlready.size() > closeIdx ? closeAlready.get(closeIdx) : new boolean[found.size()];
+        frontBigger = false;
+        selected = new boolean[found.size()];
+        artState = ART_FOUND;
+        renderAlbum();
+        fetchBigs(artGen, m.releaseId);
+    }
+
+    /**
+     * tags4 D3 ("More editions", Michael: "maybe it's a toggle you can turn on within the screen"): search wider,
+     * sure and close editions alike, most pictures first, and browse them like close matches. Nothing pre-selected.
+     */
+    private void startEditions() {
+        Album a = album;
+        boolean has = artFile(a) != null;
+        int before = artState;
+        int gen = ++artGen;
+        lookingText = "Looking for other editions…";
+        artState = ART_LOOKING;
+        renderAlbum();
+        new Thread(() -> {
+            UrlHttp http = new UrlHttp(BuildConfig.USER_AGENT);
+            com.malbers.addmycoverart.core.Tags t = com.malbers.addmycoverart.core.TagReader.read(a.firstAudio);
+            ExtrasLookup.Result r = new ExtrasLookup(http).editions(a, t, has);
+            MatchFiles mf = new MatchFiles();
+            int state = before;
+            String detail = r.detail;
+            if (r.state == ExtrasLookup.BUSY) state = ART_BUSY;
+            else if (r.state == ExtrasLookup.NETWORK) state = ART_NETWORK;
+            else if (r.state == ExtrasLookup.CLOSE) {
+                try {
+                    mf.load(a, r, http, gen);
+                } catch (java.io.IOException e) {
+                    state = com.malbers.addmycoverart.core.ArtLookup.isBusy(e) ? ART_BUSY : ART_NETWORK;
+                    if (state == ART_NETWORK) detail = com.malbers.addmycoverart.core.NetFailure.describe(e, new Date());
+                }
+            }
+            int st = state;
+            String nd = detail;
+            runOnUiThread(() -> {
+                if (gen != artGen || album != a || screen != Screen.ALBUM) return;
+                if (r.state == ExtrasLookup.CLOSE && st == before) {
+                    editionsMode = true;
+                    adoptMatches(r, mf);
+                    return;
+                }
+                if (st == ART_BUSY || st == ART_NETWORK) artNetDetail = nd;
+                else toast("No other editions with pictures.");
+                artState = st;
+                renderAlbum();
+            });
+        }, "find-editions").start();
+    }
+
+    /**
+     * After showing the previews: the 1200 pictures, in the background, for the viewer and for saving.
+     * tags4 D1 / tags5: when the album already has pictures, each one is also compared with what's in the folder,
+     * and the ones already there get "Already saved" and are unticked once the check is done. Only the match on
+     * screen is checked (tags4 checked every edition up front, which made "More editions" slow).
+     */
     private void fetchBigs(int gen, String releaseId) {
+        Album a = album;
         List<CaaExtras.Extra> x = found;
         File[] bigs = foundBig;
+        int idx = closeIdx;
+        boolean check = !com.malbers.addmycoverart.core.ExtraWriter.existingPictures(a.dir).isEmpty();
         new Thread(() -> {
             UrlHttp http = new UrlHttp(BuildConfig.USER_AGENT);
             File cache = extrasCache(releaseId);
+            boolean[] same = new boolean[x.size()];
             for (int i = 0; i < x.size() && gen == artGen; i++) {
-                if (bigs[i] != null) continue;
                 try {
-                    bigs[i] = download(http, x.get(i).saveUrl, new File(cache, i + "-1200.jpg"));
+                    if (bigs[i] == null) bigs[i] = download(http, x.get(i).saveUrl, new File(cache, i + "-1200.jpg"));
+                    if (check && bigs[i] != null) {
+                        same[i] = com.malbers.addmycoverart.core.ExtraWriter.sameAs(a.dir,
+                                java.nio.file.Files.readAllBytes(bigs[i].toPath())) != null;
+                    }
                 } catch (java.io.IOException ignored) {
-                    // saving downloads it again, and says so if it still can't
+                    // saving downloads it again, and says so if it still can't; it also skips an identical file
                 }
             }
+            if (!check) return;
+            runOnUiThread(() -> {
+                if (gen != artGen || album != a || found != x) return;
+                boolean any = false;
+                for (int i = 0; i < same.length; i++) {
+                    if (!same[i]) continue;
+                    any = true;
+                    if (selected.length > i) selected[i] = false;
+                }
+                already = same;
+                if (idx >= 0 && closeAlready.size() > idx) closeAlready.set(idx, same);
+                if (any && artState == ART_FOUND) renderAlbum();
+            });
         }, "find-art-1200").start();
     }
 
@@ -1411,20 +1610,24 @@ public class MainActivity extends Activity {
             label.setMaxWidth(t + Theme.d(20));
             label.setPadding(0, Theme.d(5), 0, 0);
             cell.addView(label);
-            if (i == 0 && frontBigger && CaaExtras.FRONT.equals(e.kind) && artFile(album) != null) {
+            if (already.length > i && already[i]) {
+                // tags4 D1: same picture already in the folder; unticked, and saving skips it anyway
+                cell.addView(Theme.monoText(this, "Already saved", 12, 500, Theme.SUCCESS));
+            } else if (i == 0 && frontBigger && CaaExtras.FRONT.equals(e.kind) && artFile(album) != null) {
                 cell.addView(Theme.monoText(this, "Bigger online", 12, 500, Theme.ACCENT));
             }
             cell.setOnClickListener(v -> openFoundViewer(idx));
             frame.addView(cell);
-            // the check badge: 28 circle at the top right, offset -6, inside a 48 touch target
+            // the check badge: 56 circle at the top right inside a 72 touch target. tags6: was 28 in 48; Michael on
+            // the A6 with Songs of Freedom's 47 pictures: "I ended up opening the thumb several times ... maybe 2x"
             TextView badge = new TextView(this);
             badge.setGravity(Gravity.CENTER);
             badge.setIncludeFontPadding(false);
             badge.setTypeface(Theme.hanken(this, 700));
-            badge.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Theme.sp(16));
+            badge.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Theme.sp(30));
             badge.setFocusable(true);
             badge.setClickable(true);
-            int hit = Theme.d(48), dot = Theme.d(28);
+            int hit = Theme.d(72), dot = Theme.d(56);
             int pad = (hit - dot) / 2;
             badge.setPadding(pad, pad, pad, pad);
             android.widget.FrameLayout.LayoutParams bl = new android.widget.FrameLayout.LayoutParams(hit, hit, Gravity.TOP | Gravity.END);
@@ -1551,6 +1754,7 @@ public class MainActivity extends Activity {
             List<File> written = new ArrayList<>();
             boolean folderJpg = false;
             String problem = null;
+            int skipped = 0;
             for (int i = 0; i < x.size(); i++) {
                 if (!sel[i]) continue;
                 CaaExtras.Extra e = x.get(i);
@@ -1560,6 +1764,11 @@ public class MainActivity extends Activity {
                         com.malbers.addmycoverart.core.Http.Response r = http.get(e.saveUrl);
                         if (r.code != 200 || r.body == null || r.body.length == 0) throw new java.io.IOException("HTTP " + r.code);
                         bytes = r.body;
+                    }
+                    // tags4 D2: never a second copy of the same picture (Michael's back.jpg + back-2.jpg)
+                    if (com.malbers.addmycoverart.core.ExtraWriter.sameAs(a.dir, bytes) != null) {
+                        skipped++;
+                        continue;
                     }
                     if (CaaExtras.FRONT.equals(e.kind) && !has) {
                         File f = com.malbers.addmycoverart.core.ArtWriter.save(a.dir, bytes, e.saveUrl, runLog);
@@ -1573,9 +1782,11 @@ public class MainActivity extends Activity {
             }
             boolean fj = folderJpg;
             String pr = problem;
+            int sk = skipped;
             runOnUiThread(() -> {
                 if (gen != artGen || album != a) return;
                 if (pr != null) toast("Couldn’t save " + pr);
+                else if (sk > 0) toast(FetchText.plural(sk, "picture") + " already in the folder, not saved again.");
                 savedCount = written.size();
                 savedFolderJpg = fj;
                 justSaved.clear();
@@ -1751,6 +1962,7 @@ public class MainActivity extends Activity {
         outcomes.clear();
         fetchOffline = false;
         fetchBusy = false;
+        fetchNetDetail = null;
         runFetch(new ArrayList<>(albums));
     }
 
@@ -1946,7 +2158,10 @@ public class MainActivity extends Activity {
             public void onDone(boolean cancelled) {
                 runOnUiThread(() -> {
                     getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                    if (self[0] != null && self[0].wentOffline()) fetchOffline = true;
+                    if (self[0] != null && self[0].wentOffline()) {
+                        fetchOffline = true;
+                        if (self[0].netDetail() != null) fetchNetDetail = self[0].netDetail();
+                    }
                     if (self[0] != null && self[0].wasBusy()) fetchBusy = true;
                     job = null;
                     if (cancelled && !untried().isEmpty()) showStopped();
@@ -2035,7 +2250,7 @@ public class MainActivity extends Activity {
         if (network && fetchBusy) sub = "The cover database is busy right now. Try again in a minute."
                 + (ok.isEmpty() ? " Nothing was changed." : " " + FetchText.plural(ok.size(), "cover") + " from inside your files "
                 + (ok.size() == 1 ? "was" : "were") + " saved anyway.");
-        else if (network) sub = "The streamer seems to be offline. " + (ok.isEmpty() ? "Nothing was changed."
+        else if (network) sub = (fetchNetDetail != null ? fetchNetDetail : "The streamer seems to be offline.") + " " + (ok.isEmpty() ? "Nothing was changed."
                 : FetchText.plural(ok.size(), "cover") + (ok.size() == 1 ? " came" : " came") + " from inside your files and "
                 + (ok.size() == 1 ? "was" : "were") + " saved anyway.");
         else if (bad.isEmpty() && !ok.isEmpty() && scan != null && fetchQueue.size() == scan.missing.size() && untried().isEmpty())
@@ -2146,6 +2361,7 @@ public class MainActivity extends Activity {
                 for (Album a : again) outcomes.remove(a);
                 fetchOffline = false;
                 fetchBusy = false;
+                fetchNetDetail = null;
                 runFetch(again);
             });
             frameFull(Screen.REPORT, scanRoot.getPath(), body, true,

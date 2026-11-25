@@ -38,6 +38,12 @@ public final class FetchJob implements Runnable {
     }
 
     private volatile boolean offline, busy;
+    private volatile String netDetail;
+
+    /** 1.1.0.1: why the run stopped asking the database (host + cause), or null. */
+    public String netDetail() {
+        return netDetail;
+    }
 
     /** True when the stop was the database being busy, not the network. */
     public boolean wasBusy() {
@@ -73,7 +79,10 @@ public final class FetchJob implements Runnable {
             // P4 (06c): once the cover database can't be reached, stop asking it for the rest of the run;
             // covers inside the files are still saved, the rest come back as "not tried"
             LookupResult r = offline ? ArtLookup.findOffline(a, t) : lookup.find(a, t);
-            if (LookupResult.NETWORK.equals(r.reason)) offline = true;
+            if (LookupResult.NETWORK.equals(r.reason)) {
+                if (!offline) netDetail = r.detail; // the first failure is the cause; later albums aren't tried
+                offline = true;
+            }
             if (LookupResult.BUSY.equals(r.reason)) { offline = true; busy = true; } // be gentle: stop asking for this run
             File saved = null;
             String error = null;

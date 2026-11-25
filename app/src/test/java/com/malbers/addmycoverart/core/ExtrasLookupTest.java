@@ -64,6 +64,15 @@ public class ExtrasLookupTest {
     }
 
     @Test
+    public void networkDetailNamesHostAndCause() {
+        ArtLookupTest.FakeHttp slow = new ArtLookupTest.FakeHttp()
+                .on("musicbrainz.org", new NetFailure("musicbrainz.org", new java.net.SocketTimeoutException("Read timed out")));
+        ExtrasLookup.Result r = new ExtrasLookup(slow).find(album("/m/Agnes Obel/Aventine", 11), TAGS, true);
+        assertEquals(ExtrasLookup.NETWORK, r.state);
+        assertEquals("musicbrainz.org didn't answer in time. Try again in a moment.", r.detail);
+    }
+
+    @Test
     public void tiesPickTheEarliestOfficialEditionEveryTime() {
         // same track count and score: the earliest date wins whatever order MusicBrainz answers in
         String early = rel("early", 11, "2013-09-30"), late = rel("late", 11, "2019-05-01");

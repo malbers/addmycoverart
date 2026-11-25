@@ -128,6 +128,7 @@ public class ArtLookupTest {
         LookupResult r = new ArtLookup(http).find(album("/m/Beatles/Help", 14), new Tags("Help", "The Beatles", null, null, false));
         assertNull(r.image);
         assertEquals(LookupResult.NETWORK, r.reason);
+        assertNotNull(r.detail);
     }
 
     @Test
@@ -193,5 +194,56 @@ public class ArtLookupTest {
         assertEquals(Text.norm("The Album II"), Text.norm("Album II, The"));
         assertEquals("The Album II", ArtLookup.searchTitle("Album II, The"));
         assertEquals("1967-1970", ArtLookup.searchTitle("1967-1970 (Disc 1)"));
+    }
+
+    // ---- 1.1.1 close matches ----
+
+    @Test
+    public void nearTitlesAndArtists() {
+        assertTrue(ArtLookup.near("Parachutes", "Parachute"));
+        assertTrue(ArtLookup.near("Jazz Gold", "Jazz Gold - Charlie Parker"));
+        assertTrue(ArtLookup.near("The Police", "Police, The"));
+        assertTrue(ArtLookup.near("Every Breath You Take: The Singles", "Every Breath You Take: the Singles"));
+        assertFalse(ArtLookup.near("Black Ivory Soul", "Before These Crowded Streets"));
+        assertFalse(ArtLookup.near("Angélique Kidjo", "Dave Matthews Band"));
+        assertFalse(ArtLookup.near("", "Parachutes"));
+        assertFalse(ArtLookup.near("Helpless", "Help"));
+        assertFalse(ArtLookup.near("Live at Luther College", "Live at Red Rocks"));
+        assertTrue(ArtLookup.near("Gipsy Kings", "Gypsy Kings"));
+        assertTrue(ArtLookup.near("Coldplay", "Cold play"));
+        assertTrue(ArtLookup.near("Midnite Vultures", "Midnight Vultures"));
+        assertFalse(ArtLookup.near("Abbey Road", "Abbey Rd Live"));
+    }
+
+    @Test
+    public void looseQueryWordsAreFuzzyAndSafe() {
+        assertEquals("Parachute~", ArtLookup.words("Parachute"));
+        assertEquals("Gypsy~ Kings~", ArtLookup.words("Gypsy Kings"));
+        assertEquals("Jazz~ Gold~ Charlie~ Parker~", ArtLookup.words("Jazz Gold - Charlie Parker"));
+        assertEquals("Live~ at Red Rocks~", ArtLookup.words("Live at Red Rocks"));
+        assertEquals("_", ArtLookup.words("()"));
+    }
+
+    @Test
+    public void closeLabel() throws Exception {
+        org.json.JSONObject r = new org.json.JSONObject("{\"title\":\"Parachutes\",\"date\":\"2000-07-10\",\"country\":\"GB\","
+                + "\"media\":[{\"format\":\"CD\"}],\"artist-credit\":[{\"name\":\"Coldplay\",\"joinphrase\":\"\"}]}");
+        assertEquals("Parachutes (2000, GB, CD) by Coldplay", ArtLookup.label(r));
+    }
+
+    @Test
+    public void searchTermsTryTheFolderAfterTheTags() {
+        Album a = new Album(new File("/m/Coldplay/Parachutes"), 10, new File("/m/Coldplay/Parachutes/01.mp3"), null, false);
+        List<String[]> terms = ArtLookup.searchTerms(a, new Tags("Parachutes", "Cold play", null, null, false));
+        assertEquals(2, terms.size());
+        assertArrayEquals(new String[]{"Cold play", "Parachutes"}, terms.get(0));
+        assertArrayEquals(new String[]{"Coldplay", "Parachutes"}, terms.get(1));
+    }
+
+    @Test
+    public void unknownAlbumGivesNothingToSearch() {
+        Album a = new Album(new File("/m/Beck/Unknown Album"), 3, new File("/m/Beck/Unknown Album/01.mp3"), null, false);
+        assertTrue(ArtLookup.searchTerms(a, new Tags("Unknown Album", "Beck", null, null, false)).isEmpty());
+        assertNull(ArtLookup.describeSearch(a, new Tags("Unknown Album", "Beck", null, null, false)));
     }
 }

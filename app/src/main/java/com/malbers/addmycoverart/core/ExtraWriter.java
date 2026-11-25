@@ -3,6 +3,8 @@ package com.malbers.addmycoverart.core;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * P6: saves extra pictures into the album's Scan/ folder (handoff "Writing extras"). Scan/ is created only here,
@@ -32,6 +34,42 @@ public final class ExtraWriter {
         for (int i = 2; ; i++) {
             f = new File(dir, base + "-" + i + ext);
             if (!f.exists()) return f;
+        }
+    }
+
+    /**
+     * tags4 (D1/D2): a picture already in the album folder or its scan folder with exactly these bytes, else null.
+     * Compared by content, so a renamed copy still counts and a different picture with the same name does not.
+     */
+    public static File sameAs(File album, byte[] image) {
+        if (image == null || image.length == 0) return null;
+        List<File> pics = existingPictures(album);
+        for (File f : pics) {
+            if (f.length() != image.length) continue;
+            try {
+                if (java.util.Arrays.equals(java.nio.file.Files.readAllBytes(f.toPath()), image)) return f;
+            } catch (IOException ignored) {
+                // unreadable: not a match
+            }
+        }
+        return null;
+    }
+
+    /** JPEG/PNG files in the album folder and its scan folder (not deeper). */
+    public static List<File> existingPictures(File album) {
+        List<File> out = new ArrayList<>();
+        addPictures(album, out);
+        File scan = scanDir(album);
+        if (scan.isDirectory()) addPictures(scan, out);
+        return out;
+    }
+
+    private static void addPictures(File dir, List<File> out) {
+        File[] files = dir.listFiles(File::isFile);
+        if (files == null) return;
+        for (File f : files) {
+            String n = f.getName().toLowerCase(java.util.Locale.ROOT);
+            if (n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png")) out.add(f);
         }
     }
 

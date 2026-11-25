@@ -100,7 +100,7 @@ Ever wondered whether your music really reaches your DAC untouched? **[EverSigna
 ## What it never does
 
 - It never changes, renames, moves or deletes your music, tags or folders.
-- It never overwrites art. An album that already has `folder.jpg`, `album.jpg`, `cover.jpg` or `front.jpg` is skipped, and a picture saved into `Scan` never replaces one that's there.
+- It never overwrites art. An album that already has `folder.jpg`, `album.jpg`, `cover.jpg` or `front.jpg` is skipped, and a picture saved into `Scan` never replaces one that's there. Nor does it save the same picture twice: pictures you already have are marked **Already saved**.
 - In your music folders, it only ever creates `folder.jpg` next to your tracks, and the pictures you pick with Find more art, in the album's `Scan` folder. Delete them and the album is back how it was.
 - It never deletes a broken cover file (an empty one, or a PDF named `album.jpg`); it just doesn't count it as a cover.
 - The only other files it writes go to the Eversolo's Download folder, and only when you ask: a saved rip report, or a downloaded update.
@@ -109,9 +109,11 @@ Ever wondered whether your music really reaches your DAC untouched? **[EverSigna
 ## Where the covers come from
 
 1. **Your own files first.** Many music files carry their album cover inside them. When your tracks do, the app copies that exact image out to `folder.jpg`: your own art, no internet and no guessing. Only albums with no cover inside the files go to step 2.
-2. **MusicBrainz and the Cover Art Archive.** [MusicBrainz](https://musicbrainz.org) is a free, community-run database of music releases: which albums exist, which tracks are on them, in which editions. The [Cover Art Archive](https://coverartarchive.org) is its companion library of album cover images. If the album has a MusicBrainz ID (the Eversolo CD Ripper writes one), the matching cover is used. Otherwise it searches by artist and album, using the tags or, failing that, the folder names.
+2. **MusicBrainz and the Cover Art Archive.** [MusicBrainz](https://musicbrainz.org) is a free, community-run database of music releases: which albums exist, which tracks are on them, in which editions. The [Cover Art Archive](https://coverartarchive.org) is its companion library of album cover images. If the album has a MusicBrainz ID (the Eversolo CD Ripper writes one), the matching cover is used. Otherwise it searches by artist and album, using the tags (FLAC, MP3 old and new, DSF, APE, WavPack and M4A) or, failing that, the folder names. Folder names like `Artist - 2006 - Album - DSF 64` or `Artist = 1977 - Album (Jap Ed) - FLAC 24-96` work: the year and the format are left out of the search. If the tags don't match (a typo, say), it tries the folder name too.
 
-It only uses a match it is confident about: same title, same artist, closest track count. **A skipped album is better than the wrong cover.** Mix CDs, home recordings and obscure compilations will show up as "Couldn't find", which is expected.
+**Fetch all** only saves a match it is confident about: same title, same artist, closest track count. A skipped album is better than the wrong cover. Mix CDs, home recordings and obscure compilations will show up as "Couldn't find", which is expected.
+
+**Find more art** goes further, because there you see everything before anything is saved. When there's no sure match it shows **close matches** (a slightly different spelling, *Midnight* for *Midnite*), clearly labelled and with nothing ticked, so you decide. **Fetch more editions** looks wider still and lets you step through other editions of the album, most pictures first.
 
 The app contacts only `musicbrainz.org` and `coverartarchive.org` for covers and pictures (the Cover Art Archive serves its images from `archive.org`, the Internet Archive), pacing its requests to stay well inside MusicBrainz's limits, plus GitHub (`api.github.com`) at most once a day to see whether a newer version is out. Nothing about you or your music is sent. If MusicBrainz is busy, the app says so and you can try again a minute later.
 
@@ -247,6 +249,15 @@ An APK with a different signer did not come from here.
 ## What's new
 
 Newest first. Every version is also on the [releases page](https://github.com/malbers/addmycoverart/releases).
+
+**1.1.1** (24 November 2026)
+- **New file formats!** It now reads the tags in DSF, APE, WavPack and M4A files and in older MP3s, so SACD rips and lossless collections finally get found. Thanks to Václav H., whose carefully organised library showed what was missing.
+- **Smarter folder names!** `Al Di Meola - 2006 - Consequence Of Chaos - DSF - 64` is searched as *Consequence Of Chaos* by *Al Di Meola*: the year and the format are left out. A typo in the tags? It tries the folder name too.
+- **Close matches!** No sure match? Find more art now shows close ones, like *Midnite Vultures* for a folder spelled *Midnight*, clearly labelled and with nothing ticked. You decide.
+- **Fetch more editions!** Only the front cover online? Step through other editions of the same album, most pictures first. One album here went from 1 picture to 11.
+- **No more duplicates!** Pictures you already have are marked **Already saved** and left unticked, and saving never makes a second copy.
+- **Clearer messages!** Can't reach the cover database? It says which site and why. Not found? It says exactly what it searched for.
+- **Opens on your music!** The app now starts on your storage list instead of the last folder you scanned.
 
 **1.1.0** (23 November 2026)
 - **Find more art!** Open any album and find its back cover, booklet pages, disc and tray on the Cover Art Archive. See each one full screen, pick the ones you want, and they're saved in the album's `Scan` folder, ready for [EverSignal](https://github.com/malbers/eversignal)'s Full-Screen Album Mode slideshow. If the online front cover is bigger than yours, it's offered too, and your own cover is never replaced. Thanks to Václav H., whose love of CD booklets gave me the idea.
