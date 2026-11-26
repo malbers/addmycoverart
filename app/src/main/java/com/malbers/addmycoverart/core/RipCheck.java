@@ -90,8 +90,9 @@ public final class RipCheck {
     public static final String WHICH_DISC = "can't tell which disc";
     public static final String NO_NAME = "no artist or album name";
     public static final String NETWORK = "network error";
+    public static final String ISO = "SACD ISO: the whole disc is one file";
 
-    private static final Pattern DISC = Pattern.compile("(?i)\\b(?:disc|disk|cd)\\s*(\\d+)");
+    private static final Pattern DISC = Pattern.compile("(?i)\\b(?:disc|disk|cd)\\s*(\\d+|[ivx]{1,4}\\b)");
 
     private final Http http;
 
@@ -102,6 +103,7 @@ public final class RipCheck {
     public Result check(Album a) {
         File[] files = a.dir.listFiles(f -> f.isFile() && AlbumScanner.isAudioName(f.getName()));
         if (files == null || files.length == 0) return skip(a, null, "no tracks");
+        for (File f : files) if (f.getName().toLowerCase(Locale.ROOT).endsWith(".iso")) return skip(a, null, ISO);
         Arrays.sort(files, Comparator.comparing(f -> f.getName().toLowerCase(Locale.ROOT)));
         List<TrackInfo> tracks = new ArrayList<>();
         for (File f : files) tracks.add(TagReader.readTrack(f).withFile(f));
@@ -526,7 +528,22 @@ public final class RipCheck {
 
     static Integer discFromName(String folder) {
         Matcher m = DISC.matcher(folder);
-        return m.find() ? Integer.valueOf(m.group(1)) : null;
+        if (!m.find()) return null;
+        String g = m.group(1);
+        return Character.isDigit(g.charAt(0)) ? Integer.valueOf(g) : roman(g);
+    }
+
+    /** 1.1.2: "I" -> 1, "iv" -> 4, "XII" -> 12; null for anything that isn't a Roman numeral. */
+    static Integer roman(String s) {
+        int total = 0, prev = 0;
+        for (int i = s.length() - 1; i >= 0; i--) {
+            char c = Character.toLowerCase(s.charAt(i));
+            int v = c == 'i' ? 1 : c == 'v' ? 5 : c == 'x' ? 10 : 0;
+            if (v == 0) return null;
+            total += v < prev ? -v : v;
+            prev = Math.max(prev, v);
+        }
+        return total > 0 ? total : null;
     }
 
     static String clock(long ms) {

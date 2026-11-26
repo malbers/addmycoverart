@@ -34,13 +34,17 @@ public final class ArtLookup {
      * artist tag, e.g. Michael's "Cold play" in a "Coldplay" folder). Empty when there is no album name at all.
      */
     public static List<String[]> searchTerms(Album a, Tags t) {
-        String[] g = FolderNameParser.guess(a.dir);
+        String[] g = FolderNameParser.guess(a);
         String tagAlbum = FolderNameParser.isPlaceholder(t.album) ? null : t.album;
         String tagArtist = t.bestArtist();
         List<String[]> out = new ArrayList<>();
         addTerm(out, tagArtist != null ? tagArtist : g[0], tagAlbum != null ? tagAlbum : g[1]);
         addTerm(out, g[0], g[1]);
         addTerm(out, g[0], tagAlbum);
+        // 1.1.2 Q6: an SACD's disc text can be swapped (Michael's Violator: title "Depeche Mode", artist "Violator"),
+        // so an ISO also tries it the other way round, last.
+        boolean iso = a.firstAudio != null && a.firstAudio.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".iso");
+        if (iso && tagAlbum != null && tagArtist != null) addTerm(out, tagAlbum, tagArtist);
         return out;
     }
 
@@ -66,7 +70,7 @@ public final class ArtLookup {
 
     public LookupResult find(Album a, Tags t) {
         List<String[]> terms = searchTerms(a, t);
-        String[] g = FolderNameParser.guess(a.dir);
+        String[] g = FolderNameParser.guess(a);
         String artist = !terms.isEmpty() ? terms.get(0)[0] : t.bestArtist() != null ? t.bestArtist() : g[0];
         String album = !terms.isEmpty() ? terms.get(0)[1] : t.album != null ? t.album : g[1];
         LookupResult inFiles = inFiles(a, artist, album);
@@ -79,7 +83,7 @@ public final class ArtLookup {
             if (terms.isEmpty()) return LookupResult.notFound(LookupResult.NO_TAGS, artist, album);
             List<JSONObject> candidates = new ArrayList<>();
             for (String[] s : terms) {
-                candidates = search(s[0], s[1], a.trackCount);
+                candidates = search(s[0], s[1], tracksFor(a));
                 if (!candidates.isEmpty()) {
                     artist = s[0];
                     album = s[1];
@@ -140,6 +144,21 @@ public final class ArtLookup {
         return rg == null ? null : cover("release-group/" + rg.getString("id"), artist, album);
     }
 
+    /**
+     * 1.1.2: the track count to rank releases by; 0 = unknown. An SACD ISO is one FILE holding the whole disc, so its
+     * "1 track" made one-track singles beat the album (Michael's Eagles: Hotel California the single won).
+     */
+    static int tracksFor(Album a) {
+        boolean iso = a.firstAudio != null && a.firstAudio.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".iso");
+        return iso ? 0 : a.trackCount;
+    }
+
+    /** 1.1.2: 0 for an album, 1 for anything else (single, EP, broadcast) or unknown. */
+    static int albumFirst(JSONObject r) {
+        JSONObject rg = r.optJSONObject("release-group");
+        return rg != null && "Album".equalsIgnoreCase(rg.optString("primary-type")) ? 0 : 1;
+    }
+
     /** Releases that match title and artist with a high score, closest track count first. */
     private List<JSONObject> search(String artist, String album, int trackCount) throws IOException, JSONException {
         // Search on the bare title: "1967-1970 (Disc 1)" scores below the bar, "1967-1970" scores 100.
@@ -158,15 +177,20 @@ public final class ArtLookup {
         String wantArtist = Text.norm(artist);
         for (int i = 0; i < releases.length(); i++) {
             JSONObject r = releases.getJSONObject(i);
+            noteFormat(r);
             if (r.optInt("score") < MIN_SCORE) continue;
-            if (!Text.norm(r.optString("title")).equals(wantTitle)) continue;
+            String title = Text.norm(r.optString("title"));
+            // 1.1.2: budget series title every disc "<Series>: <Artist>" (Michael's "Supreme Jazz: Duke Ellington")
+            if (!title.equals(wantTitle) && !title.equals(Text.norm(album + " " + artist))) continue;
             String credit = Text.norm(credit(r));
             if (!(credit.equals(wantArtist) || credit.contains(wantArtist) || wantArtist.contains(credit)) || credit.isEmpty()) continue;
             out.add(r);
         }
         // P6: ties broken the same way every time (official, earliest date, then id), so a refetch picks the same
         // edition. Before, MusicBrainz's order decided, and Michael's Miss Perfumado got a different cover each run.
-        out.sort(Comparator.<JSONObject>comparingInt(r -> Math.abs(r.optInt("track-count") - trackCount))
+        // 1.1.2: an unknown track count (SACD ISO) ranks albums before singles/EPs instead
+        out.sort(Comparator.<JSONObject>comparingInt(r -> trackCount <= 0 ? albumFirst(r) : Math.abs(r.optInt("track-count") - trackCount))
+                .thenComparing(r -> albumFirst(r))
                 .thenComparing(r -> -r.optInt("score"))
                 .thenComparing(r -> "Official".equalsIgnoreCase(r.optString("status")) ? 0 : 1)
                 .thenComparing(r -> date(r.optString("date")))
@@ -189,7 +213,7 @@ public final class ArtLookup {
         for (String[] s : searchTerms(a, t)) {
             int before = ids.size();
             try {
-                for (JSONObject r : search(s[0], s[1], a.trackCount)) {
+                for (JSONObject r : search(s[0], s[1], tracksFor(a))) {
                     String id = r.optString("id");
                     if (!id.isEmpty() && !ids.contains(id)) ids.add(id);
                     if (ids.size() >= MAX_CANDIDATES + (t.mbAlbumId != null ? 1 : 0)) break;
@@ -271,7 +295,7 @@ public final class ArtLookup {
         List<String[]> terms = searchTerms(a, t);
         try {
             for (String[] s : terms) {
-                for (JSONObject r : search(s[0], s[1], a.trackCount)) {
+                for (JSONObject r : search(s[0], s[1], tracksFor(a))) {
                     if (out.size() >= MAX_EDITIONS) return out;
                     if (ids.contains(r.optString("id"))) continue;
                     ids.add(r.optString("id"));
@@ -287,6 +311,7 @@ public final class ArtLookup {
                 if (releases == null) continue;
                 for (int i = 0; i < releases.length() && out.size() < MAX_EDITIONS; i++) {
                     JSONObject r = releases.getJSONObject(i);
+                    noteFormat(r);
                     if (r.optInt("score") < CLOSE_SCORE || ids.contains(r.optString("id"))) continue;
                     if (!near(r.optString("title"), s[1]) || !near(credit(r), s[0])) continue;
                     ids.add(r.optString("id"));
@@ -361,6 +386,23 @@ public final class ArtLookup {
             if (x.length() >= 4 && !x.equalsIgnoreCase("and") && !x.equalsIgnoreCase("not")) b.append('~');
         }
         return b.toString();
+    }
+
+    /** iso12: each release's first medium format ("12\" Vinyl", "Hybrid SACD", "CD"), as the searches saw it. */
+    private final java.util.Map<String, String> formats = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private void noteFormat(JSONObject r) {
+        String id = r.optString("id");
+        JSONArray media = r.optJSONArray("media");
+        JSONObject m = media == null || media.length() == 0 ? null : media.optJSONObject(0);
+        String fmt = m == null ? "" : m.optString("format");
+        if (!id.isEmpty() && !fmt.isEmpty()) formats.put(id, fmt);
+    }
+
+    /** iso12: the format a search reported for this release, or "" when unknown (e.g. an ID from the tags). */
+    public String formatOf(String releaseId) {
+        String f = releaseId == null ? null : formats.get(releaseId);
+        return f == null ? "" : f;
     }
 
     static String label(JSONObject r) {

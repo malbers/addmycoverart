@@ -63,7 +63,7 @@ public final class TagReader {
                 case KIND_ID3: b = id3At(f, 0); break;
                 case KIND_DSF: { long p = dsfMetadata(f); if (p > 0) b = id3At(f, p); break; }
                 case KIND_MP4: b = Mp4.read(f, false, null); break;
-                default: break;
+                default: if (f.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".iso")) b = sacdText(f); break;
             }
         } catch (IOException | RuntimeException ignored) {
             // fall through: unreadable or truncated
@@ -80,6 +80,43 @@ public final class TagReader {
             // no ID3v1 tag
         }
         return b;
+    }
+
+    /**
+     * 1.1.2: an SACD ISO's own album title and artist, from the Master TOC text (sector 511, "SACDText", big-endian
+     * offsets to Album_Title and Album_Artist). Checked on 17 of Michael's ISOs 2026-11-25: 15 clean, one with no text
+     * (Boston), one with title and artist swapped on the disc (search falls back to the file name). Null when absent.
+     */
+    static Builder sacdText(File f) throws IOException {
+        try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(f, "r")) {
+            if (raf.length() < 512L * 2048) return null;
+            byte[] id = new byte[8];
+            raf.seek(510L * 2048); raf.readFully(id);
+            if (!"SACDMTOC".equals(new String(id, StandardCharsets.ISO_8859_1))) return null;
+            byte[] t = new byte[2048];
+            raf.seek(511L * 2048); raf.readFully(t);
+            return sacdText(t);
+        }
+    }
+
+    /** The Master_Text sector itself (2048 bytes); package-visible for tests. */
+    static Builder sacdText(byte[] t) {
+        if (t.length < 32 || !"SACDText".equals(new String(t, 0, 8, StandardCharsets.ISO_8859_1))) return null;
+        String title = sacdString(t, ((t[16] & 0xFF) << 8) | (t[17] & 0xFF));
+        String artist = sacdString(t, ((t[18] & 0xFF) << 8) | (t[19] & 0xFF));
+        if (title == null && artist == null) return null;
+        Builder b = new Builder();
+        if (title != null) b.put("ALBUM", title);
+        if (artist != null) b.put("ARTIST", artist);
+        return b;
+    }
+
+    private static String sacdString(byte[] t, int pos) {
+        if (pos <= 0 || pos >= t.length) return null;
+        int end = pos;
+        while (end < t.length && t[end] != 0) end++;
+        String s = new String(t, pos, end - pos, StandardCharsets.ISO_8859_1).trim();
+        return s.isEmpty() ? null : s;
     }
 
     private static Builder flacAt(File f) throws IOException {

@@ -18,11 +18,23 @@ public final class ArtWriter {
 
     /** Returns the new folder.jpg, or null (nothing written) if the folder already has art. */
     public static File save(File dir, byte[] image, String source, File runLog) throws IOException {
+        return save(dir, NAME, image, source, runLog);
+    }
+
+    /**
+     * 1.1.2: the album's own cover name: folder.jpg, or "<ISO name>.jpg" for a SACD ISO that shares its folder
+     * (then only that exact name counts as existing art, so a neighbour's folder.jpg never blocks it).
+     */
+    public static File save(Album a, byte[] image, String source, File runLog) throws IOException {
+        return save(a.dir, a.coverName(), image, source, runLog);
+    }
+
+    private static File save(File dir, String name, byte[] image, String source, File runLog) throws IOException {
         // Re-check at write time: art may have been added since the scan.
-        if (AlbumScanner.findArtFile(dir) != null) return null;
-        File target = new File(dir, NAME);
+        if (NAME.equals(name) && AlbumScanner.findArtFile(dir) != null) return null;
+        File target = new File(dir, name);
         if (target.exists()) return null;
-        File tmp = new File(dir, NAME + ".tmp");
+        File tmp = new File(dir, name + ".tmp");
         try (FileOutputStream out = new FileOutputStream(tmp)) {
             out.write(image);
             out.getFD().sync();

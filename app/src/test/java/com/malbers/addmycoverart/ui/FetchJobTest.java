@@ -55,4 +55,53 @@ public class FetchJobTest {
         assertEquals(FetchText.NOT_TRIED_OFFLINE, reasons.get(1));
         assertEquals(FetchText.NOT_TRIED_OFFLINE, reasons.get(2));
     }
+
+    /** iso7 Q1: a database that stays busy gets BUSY_TRIES waits on the same album, then the run stops asking. */
+    @Test
+    public void busyWaitsThenStops() throws Exception {
+        Http busy = url -> { throw new IOException("HTTP 503"); };
+        List<Album> albums = new ArrayList<>();
+        albums.add(album("Depeche Mode", "Violator"));
+        albums.add(album("Eagles", "Hotel California"));
+        List<String> reasons = new ArrayList<>();
+        int[] waits = {0};
+        FetchJob job = new FetchJob(albums, new ArtLookup(busy), new File(tmp.getRoot(), "run.log"), new FetchJob.Listener() {
+            @Override public void onStart(Album a, String artist, String title, int index, int total) { }
+            @Override public void onResult(Album a, LookupResult r, File saved, String error) { reasons.add(r.reason); }
+            @Override public void onDone(boolean cancelled) { }
+            @Override public void onWait(Album a, int seconds, int attempt, int of) { waits[0]++; }
+        });
+        job.busyWaitMs = 1;
+        job.run();
+        assertEquals(FetchJob.BUSY_TRIES, waits[0]);
+        assertTrue(job.wasBusy());
+        assertEquals(LookupResult.BUSY, reasons.get(0));
+        assertEquals(FetchText.NOT_TRIED_OFFLINE, reasons.get(1));
+    }
+
+    /** iso7 Q1: after one wait the same album is asked again (here the retry meets a network failure). */
+    @Test
+    public void busyThenAsksSameAlbumAgain() throws Exception {
+        boolean[] first = {true};
+        Http flaky = url -> {
+            if (first[0]) throw new IOException("HTTP 503");
+            throw new IOException("no route to host");
+        };
+        List<Album> albums = new ArrayList<>();
+        albums.add(album("Duke Ellington", "Supreme Jazz"));
+        List<String> reasons = new ArrayList<>();
+        int[] waits = {0};
+        FetchJob job = new FetchJob(albums, new ArtLookup(flaky), new File(tmp.getRoot(), "run.log"), new FetchJob.Listener() {
+            @Override public void onStart(Album a, String artist, String title, int index, int total) { }
+            @Override public void onResult(Album a, LookupResult r, File saved, String error) { reasons.add(r.reason); }
+            @Override public void onDone(boolean cancelled) { }
+            @Override public void onWait(Album a, int seconds, int attempt, int of) { waits[0]++; first[0] = false; }
+        });
+        job.busyWaitMs = 1;
+        job.run();
+        assertEquals(1, waits[0]);
+        assertEquals(1, reasons.size());
+        assertEquals(LookupResult.NETWORK, reasons.get(0));
+        assertFalse(job.wasBusy());
+    }
 }

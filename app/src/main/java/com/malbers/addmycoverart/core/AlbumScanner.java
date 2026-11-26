@@ -12,7 +12,7 @@ import java.util.regex.Pattern;
 public final class AlbumScanner {
     private static final int MAX_DEPTH = 8;
     private static final Pattern ART = Pattern.compile("(folder|album|cover|front)\\.(jpe?g|png)");
-    private static final Pattern AUDIO = Pattern.compile(".*\\.(flac|wav|mp3|m4a|aiff?|dsf|dff|ape|wv|ogg|opus)");
+    private static final Pattern AUDIO = Pattern.compile(".*\\.(flac|wav|mp3|m4a|aiff?|dsf|dff|ape|wv|ogg|opus|iso)");
 
     private AlbumScanner() {}
 
@@ -96,6 +96,28 @@ public final class AlbumScanner {
         return best;
     }
 
+    /** 1.1.2: a folder with music in it, directly or one level down (an album, or an artist folder of albums). */
+    public static boolean holdsMusic(File dir) {
+        File[] kids = dir.listFiles();
+        if (kids == null) return false;
+        for (File k : kids) if (k.isFile() && isAudioName(k.getName())) return true;
+        for (File k : kids) {
+            if (!k.isDirectory() || k.getName().startsWith(".")) continue;
+            String[] inner = k.list();
+            if (inner != null) for (String n : inner) if (isAudioName(n)) return true;
+        }
+        return false;
+    }
+
+    /** 1.1.2: the cover an ISO sharing its folder owns: "<ISO name>.jpg" (or .jpeg/.png) that is a real picture, or null. */
+    public static String isoOwnArt(File dir, String base) {
+        for (String ext : new String[]{".jpg", ".jpeg", ".png", ".JPG", ".PNG"}) {
+            File f = new File(dir, base + ext);
+            if (f.isFile() && artProblem(f) == null) return f.getName();
+        }
+        return null;
+    }
+
     /** 1.1.0, live scanning tiles (03a): told about each album as it is found; returns true to stop early. */
     public interface Progress {
         boolean onAlbum(Album a);
@@ -137,6 +159,36 @@ public final class AlbumScanner {
             String[] names = new String[kids.length];
             for (int i = 0; i < kids.length; i++) names[i] = kids[i].isFile() ? kids[i].getName() : "";
             art = bestArtFile(dir, names); // null when every picture-named file is empty or not a picture
+        }
+        // 1.1.2: every SACD ISO is its own album, as the Eversolo Library shows it (Michael 2026-11-25, Billy Joel:
+        // one ISO loose next to others, one alone in a folder, both listed as albums). An ISO ALONE in its folder is
+        // an ordinary album (folder.jpg, Scan/). Otherwise each ISO gets "<ISO name>.jpg" and Scan/<ISO name>/.
+        List<File> isos = new ArrayList<>();
+        for (File k : kids) if (k.isFile() && k.getName().toLowerCase(Locale.ROOT).endsWith(".iso")) isos.add(k);
+        // "alone" also needs no album subfolders: an ISO loose in an artist folder that holds other albums' folders
+        // (Michael's ISO/Billy Joel/ with Nylon Curtain loose and Piano Man/ beside it) must not get the artist
+        // folder's folder.jpg. A Scan/ folder doesn't count.
+        // Only a subfolder that HOLDS MUSIC counts (Michael's Pixies Doolittle: an Artwork/ folder of scans made the
+        // single ISO look shared, so it got Doolittle.jpg + Scan/Doolittle/ instead of being an ordinary album).
+        boolean otherFolders = false;
+        for (File k : kids) {
+            if (k.isDirectory() && !k.getName().startsWith(".") && holdsMusic(k)) {
+                otherFolders = true;
+                break;
+            }
+        }
+        if (!isos.isEmpty() && (tracks > 1 || otherFolders)) {
+            for (File iso : isos) {
+                String n = iso.getName();
+                Album a = new Album(dir, 1, iso, isoOwnArt(dir, n.substring(0, n.length() - 4)), false, true);
+                (a.hasArt() ? withArt : missing).add(a);
+                if (progress != null && progress.onAlbum(a)) return false;
+            }
+            tracks -= isos.size();
+            first = null;
+            for (File k : kids) {
+                if (k.isFile() && isAudioName(k.getName()) && !isos.contains(k)) { first = k; break; }
+            }
         }
         if (tracks > 0) {
             boolean embedded = art == null && TagReader.read(first).hasPicture;

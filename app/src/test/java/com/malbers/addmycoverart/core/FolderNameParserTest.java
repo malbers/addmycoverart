@@ -93,4 +93,15 @@ public class FolderNameParserTest {
         assertTrue(FolderNameParser.isPlaceholder("Unknown Album"));
         assertFalse(FolderNameParser.isPlaceholder("Parachutes"));
     }
+
+    /** iso7 Q3: "ISO" (Michael's EverSoloMusic/ISO/<Artist>/ layout) and other holders name no artist. */
+    @Test
+    public void holderFoldersAreNotArtists() {
+        assertTrue(FolderNameParser.isNotAnArtist("ISO"));
+        assertTrue(FolderNameParser.isNotAnArtist("SACD"));
+        assertTrue(FolderNameParser.isNotAnArtist("Music"));
+        assertTrue(FolderNameParser.isNotAnArtist("A"));
+        assertFalse(FolderNameParser.isNotAnArtist("Depeche Mode"));
+        assertFalse(FolderNameParser.isNotAnArtist("Isolation Years"));
+    }
 }

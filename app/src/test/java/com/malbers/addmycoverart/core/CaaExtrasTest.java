@@ -84,12 +84,12 @@ public class CaaExtrasTest {
     @Test
     public void writerCreatesScanOnlyOnSaveAndNeverOverwrites() throws Exception {
         File album = tmp.newFolder("Aventine");
-        assertFalse(new File(album, "Scan").exists());
+        assertFalse(new File(album, "Scans").exists());
         byte[] a = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 1};
         byte[] b = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 2};
         File one = ExtraWriter.save(album, "back.jpg", a);
         File two = ExtraWriter.save(album, "back.jpg", b);
-        assertEquals("Scan", one.getParentFile().getName());
+        assertEquals("Scans", one.getParentFile().getName());   // 1.1.2: new folders are Scans
         assertEquals("back.jpg", one.getName());
         assertEquals("back-2.jpg", two.getName());
         assertArrayEquals(a, Files.readAllBytes(one.toPath()));
@@ -103,6 +103,6 @@ public class CaaExtrasTest {
         assertTrue(scans.mkdir());
         File f = ExtraWriter.save(album, "tray.jpg", new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF});
         assertEquals(scans, f.getParentFile());
-        assertFalse(new File(album, "Scan").exists());
+        assertFalse(new File(album, "Scan").exists());   // never a second folder next to an existing Scans/
     }
 }

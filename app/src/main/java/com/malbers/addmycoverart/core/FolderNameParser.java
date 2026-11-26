@@ -13,13 +13,14 @@ import java.util.regex.Pattern;
  * (1.1.1, Václav H.'s library): a year right after the artist and format parts at the end are dropped.
  */
 public final class FolderNameParser {
-    private static final Pattern DISC = Pattern.compile("(?i)(cd|disc|disk)\\s*\\d+.*");
+    /** 1.1.2: Roman numerals too ("CD I", "Disc II"; Václav H. 2026-11-25: "CD I" was searched as the album). */
+    private static final Pattern DISC = Pattern.compile("(?i)(cd|disc|disk)\\s*(\\d+|[ivx]{1,4}\\b).*");
     /** " - ", " = " or " – " with spaces around it; a dash inside a word ("Limelight-The Best") is not a separator. */
     private static final Pattern SEP = Pattern.compile("\\s+[-=\u2013]\\s+");
     private static final Pattern YEAR = Pattern.compile("(19|20)\\d{2}");
     /** A format part: "FLAC", "FLAC 24-96", "DSF 512", "Mp3", "Wv", "APE", "SACD"... */
     private static final Pattern FORMAT = Pattern.compile(
-            "(?i)(flac|alac|wav|aiff?|dsf|dff|dsd\\d*|sacd|iso|ape|wv|wavpack|mp3|m4a|aac|ogg|opus|mqa|hi-?res)"
+            "(?i)(flac|alac|wav|aiff?|dsf|dff|dsd\\d*|sacd(\\s+iso)?|iso|ape|wv|wavpack|mp3|m4a|aac|ogg|opus|mqa|hi-?res)"
                     + "(\\s+[0-9][0-9./x -]*\\s*(k|khz|kbps|bit)?)?");
     /** A bare number left after a format word: the "64" in "DSF - 64". */
     private static final Pattern NUMBERS = Pattern.compile("(?i)[0-9][0-9./x -]*\\s*(k|khz|kbps|bit)?");
@@ -30,9 +31,33 @@ public final class FolderNameParser {
     private static final Pattern UNKNOWN = Pattern.compile("(?i)unknown( album)?|untitled( album)?|no (album|title)");
     /** Folders that hold albums but name no artist (Michael's "Compilations", the "Music" root). */
     private static final Pattern NOT_AN_ARTIST = Pattern.compile(
-            "(?i)compilations?|various( artists)?|va|soundtracks?|samples?|music|mp3s?|flac|albums?|storage|download|eversolomusic");
+            "(?i)compilations?|various( artists)?|va|soundtracks?|samples?|music|mp3s?|flac|albums?|storage|download|eversolomusic"
+                    + "|isos?|sacds?|dsd|dsf|hi-?res");
 
     private FolderNameParser() {}
+
+    /** iso7 Q3: a holder folder ("ISO", "Music", "Compilations", a one-letter shelf) that names no artist. */
+    public static boolean isNotAnArtist(String folder) {
+        String p = folder == null ? "" : folder.trim();
+        return p.length() <= 1 || NOT_AN_ARTIST.matcher(p).matches();
+    }
+
+    /**
+     * 1.1.2: for a SACD ISO album the ISO's own file name says more than its folder (Michael's ISO/<Artist>/ layout:
+     * "Boston - Boston (1976) [SACD] (2000 Remaster ISO).iso"). Bracketed notes, "(... ISO)" and a bare year in
+     * brackets are dropped. Any other album: the folder, as before.
+     */
+    public static String[] guess(Album a) {
+        File first = a.firstAudio;
+        if (first == null || !first.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".iso")) return guess(a.dir);
+        String n = first.getName().substring(0, first.getName().length() - 4);
+        n = n.replaceAll("\\[[^\\]]*\\]", " ").replaceAll("(?i)\\([^()]*\\biso\\b[^()]*\\)", " ")
+                .replaceAll("\\((19|20)\\d{2}\\)", " ")
+                .replaceAll("(?i)\\([^()]*\\b((19|20)\\d{2}|remaster(ed)?|sacd|deluxe|edition|mfsl)\\b[^()]*\\)", " ")
+                .replaceAll("\\s+", " ").trim()
+                .replaceAll("(?<=\\S)[-_]((19|20)\\d{2})$", "");
+        return guess(new File(a.dir, n));
+    }
 
     public static String[] guess(File albumDir) {
         File dir = albumDir;
@@ -50,6 +75,9 @@ public final class FolderNameParser {
             if (!format && !numberAfterFormat) break;
             parts.remove(parts.size() - 1);
         }
+        // 1.1.2 Q5 (Michael's "1990 - Violator (DMCD7 …).iso" was searched as artist "1990"): a name that STARTS
+        // with a year is "year - album", so the year goes and the artist comes from the folder above.
+        if (parts.size() >= 2 && YEAR.matcher(parts.get(0)).matches()) parts.remove(0);
         String artist;
         if (parts.size() >= 2) {
             artist = parts.remove(0);

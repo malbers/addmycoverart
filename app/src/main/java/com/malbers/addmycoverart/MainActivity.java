@@ -542,7 +542,11 @@ public class MainActivity extends Activity {
                 names.add(v[1].getName());
             }
         } else {
-            File[] ks = dir.listFiles(f -> f.isDirectory() && !f.getName().startsWith("."));
+            // iso8 (Michael's Billy Joel screenshot: a "Scans" tile that opens to nothing useful): an album's picture
+            // folder (Scan/Scans/Artwork) is not a place to browse, unless someone keeps music in it
+            File[] ks = dir.listFiles(f -> f.isDirectory() && !f.getName().startsWith(".")
+                    && !(com.malbers.addmycoverart.core.ExtraWriter.isScansName(f.getName())
+                         && !com.malbers.addmycoverart.core.AlbumScanner.holdsMusic(f)));
             if (ks != null) {
                 Arrays.sort(ks, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
                 for (File k : ks) {
@@ -551,7 +555,16 @@ public class MainActivity extends Activity {
                 }
             }
         }
-        if (dir != null && kids.isEmpty()) {
+        // 1.1.2: loose SACD ISOs are albums too (the Eversolo lists each one); they get a tile of their own
+        List<File> isoFiles = new ArrayList<>();
+        if (dir != null) {
+            File[] is = dir.listFiles(f -> f.isFile() && f.getName().toLowerCase(Locale.ROOT).endsWith(".iso"));
+            if (is != null) {
+                Arrays.sort(is, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
+                isoFiles.addAll(Arrays.asList(is));
+            }
+        }
+        if (dir != null && kids.isEmpty() && isoFiles.isEmpty()) {
             showEmptyFolder(dir);
             return;
         }
@@ -587,6 +600,27 @@ public class MainActivity extends Activity {
             };
             tiles.add(t);
         }
+        int[] isosWithExtras = {0};
+        for (File iso : isoFiles) {
+            String n = iso.getName();
+            String own = com.malbers.addmycoverart.core.AlbumScanner.isoOwnArt(dir, n.substring(0, n.length() - 4));
+            Album a = new Album(dir, 1, iso, own, false, true);
+            TileGrid.Tile t = new TileGrid.Tile();
+            t.title = a.name();
+            t.meta = own == null ? "SACD ISO · no cover" : "SACD ISO";
+            t.art = own == null ? null : new File(dir, own);
+            // iso9 (Michael: "SACD albums don't show count of images… which I use to see which is empty or needs more")
+            int ex = isoExtras(a);
+            t.badge = ex > 0 ? "+" + ex : null;
+            if (ex > 0) isosWithExtras[0]++;
+            t.tag = iso;
+            File from = dir;
+            t.onClick = v -> {
+                savePlace(from, iso);
+                showAlbum(a, FROM_BROWSE);
+            };
+            tiles.add(t);
+        }
         grid.addTiles(tiles);
         body.addView(grid, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
 
@@ -607,6 +641,7 @@ public class MainActivity extends Activity {
         File here0 = dir;
         new Thread(() -> {
             int[] totals = new int[5]; // album tiles, folder tiles, without a cover (album tiles), (folder tiles), with extra art
+            totals[4] = isosWithExtras[0];
             for (int i = 0; i < kids.size(); i++) {
                 if (gen != browseGen) return;
                 FolderSummary s = FolderSummary.of(kids.get(i));
@@ -799,7 +834,7 @@ public class MainActivity extends Activity {
             }
             for (Album a : batch) {
                 TileGrid.Tile t = new TileGrid.Tile();
-                t.title = a.dir.getName();
+                t.title = a.name();
                 t.art = artFile(a);
                 t.animateIn = true;
                 grid.appendTile(t);
@@ -837,7 +872,7 @@ public class MainActivity extends Activity {
         if (total == 0) {
             frameFull(Screen.RESULTS, scanRoot.getPath(), emptyBody("There are no music files in " + scope
                     + ". Pick the folder that holds your albums."), true, null, null,
-                    Theme.button(this, "‹ Back to " + browseName(scanRoot), Theme.PRIMARY, v -> showBrowse(scanRoot)));
+                    Theme.button(this, backLabel(browseName(scanRoot)), Theme.PRIMARY, v -> showBrowse(scanRoot)));
             return;
         }
         // 04c, the one-album rule: one album that already has its cover opens its album page directly
@@ -891,27 +926,40 @@ public class MainActivity extends Activity {
 
         TextView primary;
         if (m > 0) {
+            // 1.1.2 (Michael's screenshot): "‹ Back to Billy Joel" + Rip Error Check pushed "Fetch album art (2)" off the
+            // edge. The heading already names the folder, so Back is just "‹ Back" here.
             LinearLayout left = quietGroup(
-                    Theme.button(this, "‹ Back to " + browseName(scanRoot), Theme.QUIET, v -> showBrowse(scanRoot)),
+                    Theme.button(this, "‹ Back", Theme.QUIET, v -> showBrowse(scanRoot)),
                     ripCheckButton());
             primary = Theme.button(this, "Fetch album art (" + m + ")", Theme.PRIMARY, v -> startFetch(r.missing));
+            boolean isos = false;
+            for (Album x : r.missing) if (x.sharedIso) { isos = true; break; }
             frameFull(Screen.RESULTS, scanRoot.getPath(), grid, true, left,
-                    "Saves a folder.jpg in each album folder. Music files aren’t touched.", primary);
+                    isos ? "Saves each cover next to its album. Music files aren’t touched."
+                         : "Saves a folder.jpg in each album folder. Music files aren’t touched.", primary);
         } else {
-            primary = Theme.button(this, "‹ Back to " + browseName(scanRoot), Theme.PRIMARY, v -> showBrowse(scanRoot));
+            primary = Theme.button(this, backLabel(browseName(scanRoot)), Theme.PRIMARY, v -> showBrowse(scanRoot));
             frameFull(Screen.RESULTS, scanRoot.getPath(), grid, true, ripCheckButton(), null, primary);
         }
         currentGrid = grid;
         if (!restorePlace(grid)) primary.requestFocus();
     }
 
+    /** iso9: an ISO sharing its folder: the pictures in its own Scans/<ISO name>/ (the "+N" on its tile). */
+    private static int isoExtras(Album a) {
+        String[] l = a.scanDir().list();
+        int n = 0;
+        if (l != null) for (String p : l) if (isPictureName(p)) n++;
+        return n;
+    }
+
     /** An album tile: its cover file, or the blank "No cover" square. Tapping opens the album page. */
     private TileGrid.Tile albumTile(Album a, int from) {
         TileGrid.Tile t = new TileGrid.Tile();
-        t.title = a.dir.getName();
+        t.title = a.name();
         t.art = artFile(a);
         t.meta = t.art != null ? TileGrid.plain(parentNameOrEmpty(a), Theme.TEXT_3) : TileGrid.plain("No cover", Theme.ACCENT);
-        int ex = FolderSummary.extrasOf(a.dir);
+        int ex = a.sharedIso ? isoExtras(a) : FolderSummary.extrasOf(a.dir);
         t.badge = ex > 0 ? "+" + ex : null;
         t.tag = a;
         t.onClick = v -> showAlbum(a, from);
@@ -936,9 +984,16 @@ public class MainActivity extends Activity {
         return Theme.button(this, "Rip Error Check", Theme.QUIET, v -> startRipCheck());
     }
 
+    /**
+     * The artist line: the folder above the album. iso7 (Michael's Violator page read "ISO"): an ISO sharing its
+     * folder sits IN the artist folder, so that folder names the artist; and a holder folder ("ISO", "Music",
+     * "Compilations") names nobody, so nothing is shown rather than the holder.
+     */
     private static String parentName(Album a) {
-        File p = a.dir.getParentFile();
-        return p == null ? null : p.getName();
+        File p = a.sharedIso ? a.dir : a.dir.getParentFile();
+        if (p == null) return null;
+        String n = p.getName();
+        return com.malbers.addmycoverart.core.FolderNameParser.isNotAnArtist(n) ? null : n;
     }
 
     private static String parentNameOrEmpty(Album a) {
@@ -1018,8 +1073,22 @@ public class MainActivity extends Activity {
     private List<boolean[]> closeAlready = new ArrayList<>();
     /** tags4 D3: browsing "More editions" (vs close matches); the state to go back to when there are none. */
     private boolean editionsMode;
+    /** 1.1.2 (Michael): in More editions, ticks survive switching editions; one Save writes them all. */
+    private final com.malbers.addmycoverart.core.EditionBasket basket = new com.malbers.addmycoverart.core.EditionBasket();
     /** tags5: what the looking-up panel says ("Looking for other editions…"); null = "Looking up <album>…". */
     private String lookingText;
+    /**
+     * iso10 (Michael: "Fetch more editions" started again at the edition already seen, two passes and two waits):
+     * after Find shows edition 1, the other editions are listed in the background (which pictures each has, no
+     * images yet, most pictures first). Next edition walks them; each edition's previews load when it's reached,
+     * and the one after it loads ahead. null = still listing.
+     */
+    private List<ExtrasLookup.Match> moreEds;
+    private boolean moreEdsFailed, wantNextEdition;
+    private String firstEdLabel;
+    private int edsGen;
+    private TextView edTitle, nextEdBtn;
+    private final java.util.Set<Integer> loadingEd = new java.util.HashSet<>();
     private int savedCount;
     private boolean savedFolderJpg;
     private final java.util.Set<File> justSaved = new java.util.HashSet<>();
@@ -1087,7 +1156,7 @@ public class MainActivity extends Activity {
             info.addView(note);
         }
         info.addView(Theme.oneLine(Theme.text(this, artist, 20, 400, Theme.TEXT_3)));
-        TextView title = Theme.scrolling(Theme.lineHeight(Theme.text(this, a.dir.getName(), 38, 700, Theme.TEXT), 1.1f));
+        TextView title = Theme.scrolling(Theme.lineHeight(Theme.text(this, a.name(), 38, 700, Theme.TEXT), 1.1f));
         title.setLetterSpacing(-0.015f);
         title.setPadding(0, Theme.d(4), 0, Theme.d(4));
         info.addView(title);
@@ -1101,7 +1170,8 @@ public class MainActivity extends Activity {
         View here = hereRow(a); // always built: it also lists what the big cover opens
         if (artState != ART_LOOKING && artState != ART_FOUND) {
             // "IN THIS ALBUM FOLDER · n music files, never changed"
-            TextView hereLabel = Theme.monoText(this, ("In this album folder · " + plural(a.trackCount, "music file") + ", never changed")
+            TextView hereLabel = Theme.monoText(this, ((a.sharedIso ? "This album's pictures · 1 ISO" : "In this album folder · "
+                    + plural(a.trackCount, "music file")) + ", never changed")
                     .toUpperCase(Locale.ROOT), 14, 400, Theme.TEXT_3);
             hereLabel.setLetterSpacing(0.12f);
             hereLabel.setPadding(0, Theme.d(12), 0, Theme.d(8 - 6)); // thumbnails carry a 6 focus inset
@@ -1144,18 +1214,176 @@ public class MainActivity extends Activity {
         else if (!buttons.isEmpty()) buttons.get(buttons.size() - 1).requestFocus();
     }
 
-    /** tags4 D3: a visible pill (Michael's UI rule: no text-only buttons). */
-    private TextView moreEditionsButton() {
-        return Theme.button(this, "Fetch more editions", Theme.GHOST, v -> startEditions());
+    /** tags4 D3: a visible pill (Michael's UI rule: no text-only buttons). iso10: walks the editions listed after Find. */
+    private TextView moreEditionsButton(String label) {
+        TextView b = Theme.button(this, wantNextEdition ? "Finding editions…" : label, Theme.GHOST, v -> nextEdition());
+        nextEdBtn = b;
+        return b;
+    }
+
+    /** iso10: the sure match's heading: "Edition 1 of 5 · 12 pictures", "Edition 1 · …" while listing, or plain. */
+    private String sureTitle() {
+        String pics = FetchText.plural(found.size(), "picture") + " found";
+        if (moreEds == null) return moreEdsFailed ? pics : "Edition 1 · " + pics;
+        return moreEds.isEmpty() ? pics : "Edition 1 of " + (moreEds.size() + 1) + " · " + pics;
+    }
+
+    private static boolean sameAlbum(Album x, Album y) {
+        return x != null && y != null && x.dir.equals(y.dir)
+                && java.util.Objects.equals(x.firstAudio, y.firstAudio);
+    }
+
+    /** iso10: list the other editions (pictures per edition, no images) while edition 1 is on screen. */
+    private void startEditionLoader(Album a, boolean has, String skip) {
+        int g = ++edsGen;
+        moreEds = null;
+        moreEdsFailed = false;
+        firstEdLabel = null;
+        new Thread(() -> {
+            UrlHttp http = new UrlHttp(BuildConfig.USER_AGENT);
+            com.malbers.addmycoverart.core.Tags t = com.malbers.addmycoverart.core.TagReader.read(a.firstAudio);
+            ExtrasLookup.Result r = new ExtrasLookup(http, () -> new UrlHttp(BuildConfig.USER_AGENT)).editions(a, t, has);
+            List<ExtrasLookup.Match> list = new ArrayList<>();
+            String label = null;
+            if (r.state == ExtrasLookup.CLOSE) {
+                for (ExtrasLookup.Match m : r.close) {
+                    if (m.releaseId.equals(skip)) label = m.label;   // edition 1, already on screen
+                    else list.add(m);
+                }
+            }
+            boolean failed = r.state == ExtrasLookup.BUSY || r.state == ExtrasLookup.NETWORK;
+            String lab = label;
+            runOnUiThread(() -> {
+                if (g != edsGen || !sameAlbum(album, a)) return;
+                moreEds = failed ? null : list;
+                moreEdsFailed = failed;
+                firstEdLabel = lab;
+                if (edTitle != null && artState == ART_FOUND && closeIdx < 0) edTitle.setText(sureTitle());
+                boolean waitingHere = screen == Screen.ALBUM && (artState == ART_FOUND || artState == ART_SAVED
+                        || artState == ART_FRONT_ONLY || artState == ART_NO_PICTURES);
+                if (wantNextEdition && !waitingHere) wantNextEdition = false;   // Michael moved on meanwhile
+                if (wantNextEdition) {
+                    wantNextEdition = false;
+                    if (failed) {
+                        toast(r.state == ExtrasLookup.BUSY ? "The cover database is busy. Try again in a minute."
+                                : r.detail != null ? r.detail : "Couldn’t reach the cover database.");
+                        if (nextEdBtn != null) nextEdBtn.setText("Next edition");
+                    } else {
+                        nextEdition();
+                    }
+                } else if (!failed && list.isEmpty() && artState == ART_FOUND && closeIdx < 0 && nextEdBtn != null) {
+                    nextEdBtn.setVisibility(View.GONE);   // only one edition has pictures
+                }
+            });
+            // iso12 (Michael: "fetch them the moment the first loads"): edition 2's previews into the cache now,
+            // while edition 1 is on screen, so the first Next edition is instant (download() reuses cached files)
+            if (!failed && !list.isEmpty()) {
+                ExtrasLookup.Match m2 = list.get(0);
+                File cache = extrasCache(m2.releaseId);
+                try {
+                    for (int i = 0; i < m2.extras.size() && g == edsGen; i++) {
+                        download(http, m2.extras.get(i).thumbUrl, new File(cache, i + "-250.jpg"));
+                    }
+                } catch (java.io.IOException ignored) {
+                    // Next edition fetches whatever is missing, and says so if it still can't
+                }
+            }
+        }, "list-editions").start();
+    }
+
+    /**
+     * iso10: Next edition / Other editions. Edition 1 is the match on screen (its ticks are kept); the rest are the
+     * editions listed in the background. Pressed before the list is ready: waits for it, without a second search.
+     */
+    private void nextEdition() {
+        Album a = album;
+        if (moreEds == null) {
+            if (moreEdsFailed || wantNextEdition) {
+                if (!moreEdsFailed) return;   // already waiting
+                startEditionLoader(a, artFile(a) != null, foundRelease);
+            }
+            wantNextEdition = true;
+            if (nextEdBtn != null) nextEdBtn.setText("Finding editions…");
+            return;
+        }
+        if (moreEds.isEmpty()) {
+            toast("No other editions with pictures.");
+            return;
+        }
+        boolean current = artState == ART_FOUND && closeIdx < 0 && found != null && !found.isEmpty();
+        List<ExtrasLookup.Match> all = new ArrayList<>();
+        List<File[]> th = new ArrayList<>(), bg = new ArrayList<>();
+        List<boolean[]> al = new ArrayList<>();
+        if (current) {
+            all.add(new ExtrasLookup.Match(foundRelease, firstEdLabel != null ? firstEdLabel : "the first match", found));
+            th.add(foundThumb);
+            bg.add(foundBig);
+            al.add(already);
+        } else {
+            basket.clear();
+            if (artState == ART_SAVED) album = refreshed(album);   // the pictures just saved count as already there
+        }
+        for (ExtrasLookup.Match m : moreEds) {
+            all.add(m);
+            th.add(null);   // previews load when this edition is reached
+            bg.add(new File[m.extras.size()]);
+            al.add(new boolean[m.extras.size()]);
+        }
+        editionsMode = true;
+        closeMatches = all;
+        closeThumbs = th;
+        closeBigs = bg;
+        closeAlready = al;
+        loadingEd.clear();
+        if (!current) {
+            found = null;       // nothing on screen to park
+            foundRelease = null;
+        }
+        showClose(current ? 1 : 0);
+    }
+
+    /** iso10: download one edition's previews in the background, then run {@code then} on the UI thread. */
+    private void loadEdition(int idx, Runnable then) {
+        List<ExtrasLookup.Match> list = closeMatches;
+        if (idx < 0 || idx >= list.size() || closeThumbs.get(idx) != null || !loadingEd.add(idx)) return;
+        ExtrasLookup.Match m = list.get(idx);
+        new Thread(() -> {
+            UrlHttp http = new UrlHttp(BuildConfig.USER_AGENT);
+            File cache = extrasCache(m.releaseId);
+            File[] th = new File[m.extras.size()];
+            String err = null;
+            try {
+                for (int i = 0; i < th.length; i++) th[i] = download(http, m.extras.get(i).thumbUrl, new File(cache, i + "-250.jpg"));
+            } catch (java.io.IOException e) {
+                err = com.malbers.addmycoverart.core.ArtLookup.isBusy(e) ? "The cover database is busy. Try again in a minute."
+                        : com.malbers.addmycoverart.core.NetFailure.describe(e, new Date());
+            }
+            String er = err;
+            runOnUiThread(() -> {
+                loadingEd.remove(idx);
+                if (closeMatches != list) return;
+                if (er != null) {
+                    if (then != null) {
+                        toast(er);
+                        if (nextEdBtn != null) nextEdBtn.setText("Next edition");
+                    }
+                    return;
+                }
+                closeThumbs.set(idx, th);
+                if (then != null) then.run();
+            });
+        }, "edition-previews").start();
     }
 
     /** Fills the panel for the current state; returns the primary button (or null) and adds secondary buttons. */
     private TextView buildPanel(LinearLayout panel, Album a, boolean has, List<View> buttons) {
-        String saveWhere = "Saves into " + a.dir.getName() + "/Scan/" + (has ? "" : " (front as folder.jpg)") + ". Music files are never touched.";
+        String saveWhere = a.sharedIso
+                ? "Saves into " + a.scanDir().getParentFile().getName() + "/" + a.isoBase() + "/" + (has ? "" : " (front as " + a.coverName() + ")") + ". Music files are never touched."
+                : "Saves into " + a.dir.getName() + "/" + a.scanDir().getName() + "/" + (has ? "" : " (front as folder.jpg)") + ". Music files are never touched.";
         switch (artState) {
             case ART_LOOKING: {
                 panel.addView(Theme.oneLine(Theme.text(this, lookingText != null ? lookingText
-                        : "Looking up " + a.dir.getName() + "…", 24, 600, Theme.TEXT)));
+                        : "Looking up " + a.name() + "…", 24, 600, Theme.TEXT)));
                 LinearLayout row = Ui.row(this);
                 row.setPadding(0, Theme.d(14), 0, 0);
                 for (int i = 0; i < 7; i++) {
@@ -1195,14 +1423,17 @@ public class MainActivity extends Activity {
                             ? FetchText.plural(found.size(), "picture") + ", nothing picked yet."
                             : "No sure match, so check it’s your album.") + " Tap one to see it, the check picks it.", 17, 400, Theme.TEXT_3)));
                     if (closeMatches.size() > 1) {
-                        buttons.add(Theme.button(this, editionsMode ? "Next edition" : "Another match",
-                                Theme.GHOST, v -> showClose(closeIdx + 1)));
+                        TextView nb = Theme.button(this, editionsMode ? "Next edition" : "Another match",
+                                Theme.GHOST, v -> showClose(closeIdx + 1));
+                        if (editionsMode) nextEdBtn = nb;   // iso10: says "Loading edition…" while previews come
+                        buttons.add(nb);
                     }
                 } else {
                     LinearLayout head = Ui.row(this);
                     head.setGravity(Gravity.NO_GRAVITY);
                     head.setBaselineAligned(true);
-                    head.addView(Theme.text(this, FetchText.plural(found.size(), "picture") + " found", 24, 600, Theme.TEXT));
+                    edTitle = Theme.text(this, sureTitle(), 24, 600, Theme.TEXT);
+                    head.addView(edTitle);
                     // Michael 2026-11-23: tap = see it full screen, the check = leave it in or out ("you wanna see before selecting")
                     head.addView(Theme.oneLine(Theme.text(this, "Tap one to see it. The check leaves it out.", 17, 400, Theme.TEXT_3)), Ui.wrap(Theme.d(14)));
                     panel.addView(head);
@@ -1214,7 +1445,7 @@ public class MainActivity extends Activity {
                     artState = ART_IDLE;
                     renderAlbum();
                 }));
-                if (closeIdx < 0) buttons.add(moreEditionsButton());
+                if (closeIdx < 0 && !(moreEds != null && moreEds.isEmpty())) buttons.add(moreEditionsButton("Next edition"));
                 savePrimary = Theme.button(this, "", Theme.PRIMARY, v -> saveSelected());
                 updateSaveLabel();
                 return savePrimary;
@@ -1222,8 +1453,8 @@ public class MainActivity extends Activity {
             case ART_FRONT_ONLY:
                 panelText(panel, "Only the front cover is online",
                         "The Cover Art Archive has just the front for this release, and you already have it. "
-                                + "Other editions may have more: try Fetch more editions.", null);
-                buttons.add(moreEditionsButton());
+                                + "Other editions may have more: try Other editions.", null);
+                buttons.add(moreEditionsButton("Other editions"));
                 return Theme.wide(Theme.button(this, "Done", Theme.PRIMARY, v -> artDone()));
             case ART_NONE:
                 // 1.1.1: say what was actually searched (Václav H. read the shelf folder "A" as the artist)
@@ -1236,8 +1467,8 @@ public class MainActivity extends Activity {
             case ART_NO_PICTURES:
                 panelText(panel, "No pictures for this album yet",
                         "MusicBrainz knows this album, but nobody has added pictures of this edition to the Cover Art "
-                                + "Archive. Other editions may have some: try Fetch more editions.", null);
-                buttons.add(moreEditionsButton());
+                                + "Archive. Other editions may have some: try Other editions.", null);
+                buttons.add(moreEditionsButton("Other editions"));
                 return Theme.wide(Theme.button(this, "Done", Theme.PRIMARY, v -> artDone()));
             case ART_BUSY:
                 panelText(panel, "The cover database is busy", "It asked us to wait a moment. Try again in a minute. Nothing was changed.", null);
@@ -1257,8 +1488,9 @@ public class MainActivity extends Activity {
                 o.setColor(Theme.SUCCESS);
                 tick.setBackground(o);
                 head.addView(tick, new LinearLayout.LayoutParams(Theme.d(30), Theme.d(30)));
-                String t = savedFolderJpg && savedCount == 1 ? "Saved the cover as folder.jpg"
-                        : "Saved " + FetchText.plural(savedCount, "picture") + (savedFolderJpg ? " (the cover as folder.jpg)" : " to Scan/");
+                String cover = a.coverName();   // 1.1.2: "<ISO name>.jpg" for an ISO sharing its folder
+                String t = savedFolderJpg && savedCount == 1 ? "Saved the cover as " + cover
+                        : "Saved " + FetchText.plural(savedCount, "picture") + (savedFolderJpg ? " (the cover as " + cover + ")" : " to " + a.scanDir().getName() + "/");
                 head.addView(Theme.oneLine(Theme.text(this, t, 24, 600, Theme.TEXT)), Ui.wrap(Theme.d(12)));
                 panel.addView(head);
                 TextView es = Theme.lineHeight(Theme.text(this, "", 19, 400, Theme.TEXT_2), 1.45f);
@@ -1272,6 +1504,14 @@ public class MainActivity extends Activity {
                 panel.addView(es);
                 panel.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1));
                 panel.addView(Theme.monoText(this, "Music files changed: 0", 15, 400, Theme.TEXT_3));
+                // 1.1.2 (Michael 2026-11-25): carry on enriching from here instead of Done, Back, open again and
+                // re-fetching the set just saved. From an editions save: straight back to the editions already loaded.
+                if (editionsMode && !closeMatches.isEmpty()) {
+                    buttons.add(Theme.button(this, "Back to editions", Theme.GHOST, v -> showClose(Math.max(0, closeIdx))));
+                } else {
+                    // iso10: the editions listed after Find, no new search
+                    buttons.add(moreEditionsButton("Other editions"));
+                }
                 return Theme.wide(Theme.button(this, "Done", Theme.PRIMARY, v -> artDone()));
             }
             default: {
@@ -1351,6 +1591,10 @@ public class MainActivity extends Activity {
         boolean has = artFile(a) != null;
         int gen = ++artGen;
         lookingText = null;
+        wantNextEdition = false;
+        edsGen++;            // a listing from an earlier Find no longer applies
+        moreEds = null;
+        moreEdsFailed = false;
         artState = ART_LOOKING;
         renderAlbum();
         new Thread(() -> {
@@ -1407,6 +1651,7 @@ public class MainActivity extends Activity {
                 artNetDetail = nd;
                 artSearched = searched;
                 editionsMode = false;
+                basket.clear();
                 if (r.state == ExtrasLookup.CLOSE && st == ART_FOUND) {
                     adoptMatches(r, mf);
                     return;
@@ -1425,6 +1670,8 @@ public class MainActivity extends Activity {
                     // tags4 D1: and never what's already in the folder
                     selected[i] = !alr[i] && (!(has && CaaExtras.FRONT.equals(x.get(i).kind)) || big);
                 }
+                // iso10: with a sure match (or none with pictures), list the other editions while this one shows
+                if (st == ART_FOUND || st == ART_FRONT_ONLY || st == ART_NO_PICTURES) startEditionLoader(a, has, r.releaseId);
                 artState = st;
                 renderAlbum();
                 if (st == ART_FOUND) fetchBigs(gen, r.releaseId);
@@ -1467,7 +1714,16 @@ public class MainActivity extends Activity {
      */
     private void showClose(int i) {
         if (closeMatches.isEmpty()) return;
-        closeIdx = i % closeMatches.size();
+        // 1.1.2: park this edition's ticks before moving on (the first call parks the sure match's, if any)
+        if (editionsMode && foundRelease != null && found != null) basket.park(foundRelease, found, selected, foundBig);
+        int want = i % closeMatches.size();
+        if (closeThumbs.get(want) == null) {
+            // iso10: this edition's previews aren't here yet: fetch them, then show it (the button says so meanwhile)
+            if (nextEdBtn != null) nextEdBtn.setText("Loading edition…");
+            loadEdition(want, () -> showClose(want));
+            return;
+        }
+        closeIdx = want;
         ExtrasLookup.Match m = closeMatches.get(closeIdx);
         found = m.extras;
         foundRelease = m.releaseId;
@@ -1475,56 +1731,12 @@ public class MainActivity extends Activity {
         foundBig = closeBigs.get(closeIdx);
         already = closeAlready.size() > closeIdx ? closeAlready.get(closeIdx) : new boolean[found.size()];
         frontBigger = false;
-        selected = new boolean[found.size()];
+        selected = editionsMode ? basket.restore(m.releaseId, found.size()) : new boolean[found.size()];
         artState = ART_FOUND;
         renderAlbum();
         fetchBigs(artGen, m.releaseId);
-    }
-
-    /**
-     * tags4 D3 ("More editions", Michael: "maybe it's a toggle you can turn on within the screen"): search wider,
-     * sure and close editions alike, most pictures first, and browse them like close matches. Nothing pre-selected.
-     */
-    private void startEditions() {
-        Album a = album;
-        boolean has = artFile(a) != null;
-        int before = artState;
-        int gen = ++artGen;
-        lookingText = "Looking for other editions…";
-        artState = ART_LOOKING;
-        renderAlbum();
-        new Thread(() -> {
-            UrlHttp http = new UrlHttp(BuildConfig.USER_AGENT);
-            com.malbers.addmycoverart.core.Tags t = com.malbers.addmycoverart.core.TagReader.read(a.firstAudio);
-            ExtrasLookup.Result r = new ExtrasLookup(http).editions(a, t, has);
-            MatchFiles mf = new MatchFiles();
-            int state = before;
-            String detail = r.detail;
-            if (r.state == ExtrasLookup.BUSY) state = ART_BUSY;
-            else if (r.state == ExtrasLookup.NETWORK) state = ART_NETWORK;
-            else if (r.state == ExtrasLookup.CLOSE) {
-                try {
-                    mf.load(a, r, http, gen);
-                } catch (java.io.IOException e) {
-                    state = com.malbers.addmycoverart.core.ArtLookup.isBusy(e) ? ART_BUSY : ART_NETWORK;
-                    if (state == ART_NETWORK) detail = com.malbers.addmycoverart.core.NetFailure.describe(e, new Date());
-                }
-            }
-            int st = state;
-            String nd = detail;
-            runOnUiThread(() -> {
-                if (gen != artGen || album != a || screen != Screen.ALBUM) return;
-                if (r.state == ExtrasLookup.CLOSE && st == before) {
-                    editionsMode = true;
-                    adoptMatches(r, mf);
-                    return;
-                }
-                if (st == ART_BUSY || st == ART_NETWORK) artNetDetail = nd;
-                else toast("No other editions with pictures.");
-                artState = st;
-                renderAlbum();
-            });
-        }, "find-editions").start();
+        // iso10: the next edition's previews load ahead, so Next edition is usually instant
+        if (editionsMode && closeMatches.size() > 1) loadEdition((closeIdx + 1) % closeMatches.size(), null);
     }
 
     /**
@@ -1538,7 +1750,7 @@ public class MainActivity extends Activity {
         List<CaaExtras.Extra> x = found;
         File[] bigs = foundBig;
         int idx = closeIdx;
-        boolean check = !com.malbers.addmycoverart.core.ExtraWriter.existingPictures(a.dir).isEmpty();
+        boolean check = !com.malbers.addmycoverart.core.ExtraWriter.existingPictures(a).isEmpty();
         new Thread(() -> {
             UrlHttp http = new UrlHttp(BuildConfig.USER_AGENT);
             File cache = extrasCache(releaseId);
@@ -1547,7 +1759,7 @@ public class MainActivity extends Activity {
                 try {
                     if (bigs[i] == null) bigs[i] = download(http, x.get(i).saveUrl, new File(cache, i + "-1200.jpg"));
                     if (check && bigs[i] != null) {
-                        same[i] = com.malbers.addmycoverart.core.ExtraWriter.sameAs(a.dir,
+                        same[i] = com.malbers.addmycoverart.core.ExtraWriter.sameAs(a,
                                 java.nio.file.Files.readAllBytes(bigs[i].toPath())) != null;
                     }
                 } catch (java.io.IOException ignored) {
@@ -1686,6 +1898,13 @@ public class MainActivity extends Activity {
     private void updateSaveLabel() {
         if (savePrimary == null) return;
         int n = selectedCount();
+        int others = editionsMode ? basket.countOthers(foundRelease) : 0;
+        if (others > 0) {
+            int eds = basket.editionsWithPicks(foundRelease) + (n > 0 ? 1 : 0);
+            savePrimary.setText("Save " + FetchText.plural(n + others, "picture") + " · " + FetchText.plural(eds, "edition"));
+            Theme.setEnabledPrimary(savePrimary, true);
+            return;
+        }
         savePrimary.setText(n == found.size() ? "Save all (" + n + ")" : n > 0 ? "Save " + FetchText.plural(n, "picture") : "Nothing selected");
         Theme.setEnabledPrimary(savePrimary, n > 0);
     }
@@ -1738,6 +1957,14 @@ public class MainActivity extends Activity {
         });
     }
 
+    /**
+     * 1.1.2 (Václav H., 2026-11-25): a long folder name in the Back button pushed Try again off the screen
+     * ("‹ Back to Deep Purple = 1972 - Made In Japan (2014 Deluxe Ed) - FLAC 24-96"). Short names keep it.
+     */
+    static String backLabel(String name) {
+        return name == null || name.isEmpty() || name.length() > 24 ? "‹ Back" : "‹ Back to " + name;
+    }
+
     /** 07g: save the selected pictures (Scan/…, a blank album's front as folder.jpg), then show them in the row. */
     private void saveSelected() {
         Album a = album;
@@ -1746,6 +1973,15 @@ public class MainActivity extends Activity {
         List<CaaExtras.Extra> x = found;
         boolean[] sel = selected.clone();
         File[] bigs = foundBig.clone();
+        if (editionsMode && basket.countOthers(foundRelease) > 0) {   // 1.1.2: every edition's picks in one Save
+            com.malbers.addmycoverart.core.EditionBasket.Picks all = basket.combined(foundRelease, found, selected, foundBig);
+            x = all.extras;
+            sel = all.selected;
+            bigs = all.bigs;
+        }
+        List<CaaExtras.Extra> xs = x;
+        boolean[] sels = sel;
+        File[] bigss = bigs;
         Theme.setEnabledPrimary(savePrimary, false);
         savePrimary.setText("Saving…");
         File runLog = new File(getFilesDir(), "extras-" + new SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(new Date()) + ".log");
@@ -1755,26 +1991,28 @@ public class MainActivity extends Activity {
             boolean folderJpg = false;
             String problem = null;
             int skipped = 0;
-            for (int i = 0; i < x.size(); i++) {
-                if (!sel[i]) continue;
-                CaaExtras.Extra e = x.get(i);
+            for (int i = 0; i < xs.size(); i++) {
+                if (!sels[i]) continue;
+                CaaExtras.Extra e = xs.get(i);
                 try {
-                    byte[] bytes = bigs[i] != null ? java.nio.file.Files.readAllBytes(bigs[i].toPath()) : null;
+                    byte[] bytes = bigss[i] != null ? java.nio.file.Files.readAllBytes(bigss[i].toPath()) : null;
                     if (bytes == null) {
                         com.malbers.addmycoverart.core.Http.Response r = http.get(e.saveUrl);
                         if (r.code != 200 || r.body == null || r.body.length == 0) throw new java.io.IOException("HTTP " + r.code);
                         bytes = r.body;
                     }
                     // tags4 D2: never a second copy of the same picture (Michael's back.jpg + back-2.jpg)
-                    if (com.malbers.addmycoverart.core.ExtraWriter.sameAs(a.dir, bytes) != null) {
+                    if (com.malbers.addmycoverart.core.ExtraWriter.sameAs(a, bytes) != null) {
                         skipped++;
                         continue;
                     }
                     if (CaaExtras.FRONT.equals(e.kind) && !has) {
-                        File f = com.malbers.addmycoverart.core.ArtWriter.save(a.dir, bytes, e.saveUrl, runLog);
+                        File f = com.malbers.addmycoverart.core.ArtWriter.save(a, bytes, e.saveUrl, runLog);
                         if (f != null) { written.add(f); folderJpg = true; }
+                        // 1.1.2: a second front from another edition: the cover is taken, keep it in Scan/
+                        else written.add(com.malbers.addmycoverart.core.ExtraWriter.save(a, "front.jpg", bytes));
                     } else {
-                        written.add(com.malbers.addmycoverart.core.ExtraWriter.save(a.dir, e.fileName, bytes));
+                        written.add(com.malbers.addmycoverart.core.ExtraWriter.save(a, e.fileName, bytes));
                     }
                 } catch (java.io.IOException ex) {
                     problem = e.label + ": " + ex.getMessage();
@@ -1788,6 +2026,7 @@ public class MainActivity extends Activity {
                 if (pr != null) toast("Couldn’t save " + pr);
                 else if (sk > 0) toast(FetchText.plural(sk, "picture") + " already in the folder, not saved again.");
                 savedCount = written.size();
+                basket.clear();
                 savedFolderJpg = fj;
                 justSaved.clear();
                 justSaved.addAll(written);
@@ -1819,8 +2058,14 @@ public class MainActivity extends Activity {
         viewLabels.clear();
         viewCells.clear();
         List<File> pics = new ArrayList<>();
-        File[] files = a.dir.listFiles();
+        File[] files = a.sharedIso ? null : a.dir.listFiles();
         File scanDir = null;
+        if (a.sharedIso) {
+            // iso7 (Michael's Violator screenshot: all 13 Depeche Mode covers in the row): an ISO sharing its folder
+            // shows only its own "<ISO name>.jpg" and Scan/<ISO name>/, the same set Save and "Already saved" use
+            scanDir = a.scanDir();
+            pics.addAll(com.malbers.addmycoverart.core.ExtraWriter.existingPictures(a));
+        }
         if (files != null) {
             Arrays.sort(files, (x, y) -> x.getName().compareToIgnoreCase(y.getName()));
             String best = a.existingArt;
@@ -1830,7 +2075,7 @@ public class MainActivity extends Activity {
                 else if (f.isFile() && isPictureName(f.getName()) && !f.getName().equals(best)) pics.add(f);
             }
         }
-        if (scanDir != null) {
+        if (scanDir != null && !a.sharedIso) {
             File[] scans = scanDir.listFiles(f -> f.isFile() && isPictureName(f.getName()));
             if (scans != null) {
                 Arrays.sort(scans, (x, y) -> x.getName().compareToIgnoreCase(y.getName()));
@@ -1852,7 +2097,9 @@ public class MainActivity extends Activity {
         for (int i = 0; i < pics.size(); i++) {
             File f = pics.get(i);
             boolean ok = AlbumScanner.artProblem(f) == null;
-            String name = f.getParentFile() != null && f.getParentFile().equals(scanDir) ? scanDir.getName() + "/" + f.getName() : f.getName();
+            String name = f.getParentFile() != null && f.getParentFile().equals(scanDir)
+                    ? (a.sharedIso ? scanDir.getParentFile().getName() + "/" : "") + scanDir.getName() + "/" + f.getName()
+                    : f.getName();
             LinearLayout cell = Ui.column(this);
             cell.setGravity(Gravity.CENTER_HORIZONTAL);
             int p = Theme.d(6);
@@ -1920,15 +2167,18 @@ public class MainActivity extends Activity {
     }
 
     private String albumBackLabel() {
-        if (albumFrom == FROM_BROWSE) return "‹ Back to " + parentNameOrEmpty(album);
-        if (albumFrom == FROM_SCAN) return "‹ Back to " + parentNameOrEmpty(album);
+        // navigation names the real folder (even "ISO"); parentName is the artist line and skips holder folders
+        File above = album.dir.getParentFile();
+        String aboveName = above == null ? "" : above.getName();
+        if (albumFrom == FROM_BROWSE) return backLabel(album.sharedIso ? album.dir.getName() : aboveName);
+        if (albumFrom == FROM_SCAN) return backLabel(aboveName);
         if (albumFrom == FROM_REPORT) return "‹ Back to report";
         return "‹ Back to albums";
     }
 
     private void albumBack() {
         restoreNext = true;
-        if (albumFrom == FROM_BROWSE) showBrowse(album.dir.getParentFile());
+        if (albumFrom == FROM_BROWSE) showBrowse(album.sharedIso ? album.dir : album.dir.getParentFile());
         else if (albumFrom == FROM_SCAN) showBrowse(scanRoot);
         else if (albumFrom == FROM_REPORT) showReport();
         else showResults(scan);
@@ -1990,7 +2240,7 @@ public class MainActivity extends Activity {
 
     private TileGrid.Tile queueTile(Album a) {
         TileGrid.Tile t = new TileGrid.Tile();
-        t.title = a.dir.getName();
+        t.title = a.name();
         t.tag = a;
         Outcome o = outcomes.get(a);
         if (o == null) {
@@ -2086,8 +2336,11 @@ public class MainActivity extends Activity {
 
         TextView stop = Theme.button(this, "Stop", Theme.GHOST, null);
         // P6 (Michael: Stop on the left was "jarring"): Stop sits where "Fetch album art" was
+        boolean anyIso = false;
+        for (Album x : todo) if (x.sharedIso) { anyIso = true; break; }
         frameFull(Screen.FETCHING, "Fetching covers for " + scanRoot.getName(), body, true, null,
-                "Each cover is saved as folder.jpg inside its album folder.", stop);
+                anyIso ? "Each cover is saved next to its album. Music files aren’t touched."
+                       : "Each cover is saved as folder.jpg inside its album folder.", stop);
         stop.requestFocus();
 
         File runLog = new File(getFilesDir(), "run-" + new SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(new Date()) + ".log");
@@ -2116,6 +2369,21 @@ public class MainActivity extends Activity {
                     }
                     grid.refresh();
                     grid.scrollToTag(album);
+                });
+            }
+
+            @Override
+            public void onWait(Album album, int seconds, int attempt, int of) {
+                runOnUiThread(() -> {
+                    status.setTextColor(Theme.TEXT_3);
+                    status.setText("The cover database is busy. Waiting " + seconds + " seconds, then carrying on ("
+                            + attempt + " of " + of + ")…");
+                    TileGrid.Tile t = tileOf.get(album);
+                    if (t != null) {
+                        t.blankLabel = "Waiting…";
+                        t.meta = TileGrid.plain("Database busy, waiting", Theme.TEXT_3);
+                        grid.refresh();
+                    }
                 });
             }
 
@@ -2202,7 +2470,7 @@ public class MainActivity extends Activity {
             } else if (o != null) cv.setBlank(CoverView.MUTED, "Not found");
             else cv.setBlank(CoverView.FLAG, "No cover");
             cell.addView(cv);
-            TextView ct = Theme.oneLine(Theme.text(this, a.dir.getName(), 16, 600, Theme.TEXT));
+            TextView ct = Theme.oneLine(Theme.text(this, a.name(), 16, 600, Theme.TEXT));
             ct.setMaxWidth(t);
             ct.setPadding(0, Theme.d(8), 0, 0);
             cell.addView(ct);
@@ -2276,7 +2544,7 @@ public class MainActivity extends Activity {
                 cv.setEmpty();
                 CoverLoader.get().load(outcomes.get(a).saved, t, cv::setImage);
                 cell.addView(cv);
-                TextView ct = Theme.oneLine(Theme.text(this, a.dir.getName(), 15, 600, Theme.TEXT));
+                TextView ct = Theme.oneLine(Theme.text(this, a.name(), 15, 600, Theme.TEXT));
                 ct.setMaxWidth(t);
                 ct.setPadding(0, Theme.d(6), 0, 0);
                 cell.addView(ct);
@@ -2314,7 +2582,7 @@ public class MainActivity extends Activity {
                 tx.setPadding(Theme.d(16), 0, 0, 0);
                 TextView name = Theme.oneLine(Theme.text(this, "", 19, 600, Theme.TEXT));
                 String ar = parentNameOrEmpty(a);
-                name.setText(TileGrid.twoTone(a.dir.getName(), Theme.TEXT, ar.isEmpty() ? null : " · " + ar, Theme.TEXT_3));
+                name.setText(TileGrid.twoTone(a.name(), Theme.TEXT, ar.isEmpty() ? null : " · " + ar, Theme.TEXT_3));
                 tx.addView(name);
                 TextView why = Theme.text(this, FetchText.reason(outcomes.get(a).why), 17, 400, Theme.TEXT_2);
                 why.setPadding(0, Theme.d(3), 0, 0);
@@ -2346,7 +2614,13 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams dp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, Theme.d(1)));
         dp.topMargin = dp.bottomMargin = Theme.d(18);
         card.addView(div, dp);
-        card.addView(ledger("folder.jpg added", String.valueOf(ok.size()), Theme.SUCCESS));
+        // iso7 Q2: an ISO sharing its folder gets "<ISO name>.jpg", so "folder.jpg added" is only true when every save was one
+        boolean allFolderJpg = true;
+        for (Album x : ok) {
+            Outcome o = outcomes.get(x);
+            if (o != null && o.saved != null && !o.saved.getName().equals(com.malbers.addmycoverart.core.ArtWriter.NAME)) { allFolderJpg = false; break; }
+        }
+        card.addView(ledger(allFolderJpg ? "folder.jpg added" : "Covers added", String.valueOf(ok.size()), Theme.SUCCESS));
         card.addView(ledger("Already had a cover", String.valueOf(skipped), Theme.TEXT));
         card.addView(ledger("Music files changed", "0", Theme.TEXT));
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(Theme.d(400), LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -2383,6 +2657,9 @@ public class MainActivity extends Activity {
 
     /** The album as it is on disk now (a cover may just have been saved). */
     private static Album refreshed(Album a) {
+        // 1.1.2: an ISO sharing its folder stays that ISO (the folder itself is not an album)
+        if (a.sharedIso) return new Album(a.dir, 1, a.firstAudio,
+                com.malbers.addmycoverart.core.AlbumScanner.isoOwnArt(a.dir, a.isoBase()), false, true);
         FolderSummary s = FolderSummary.of(a.dir);
         return s.isAlbum() ? s.toAlbum() : a;
     }
@@ -2437,7 +2714,7 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     count.setText((n + 1) + " of " + all.size());
                     nowBy.setText(parentNameOrEmpty(a));
-                    now.setText(a.dir.getName());
+                    now.setText(a.name());
                 });
                 RipCheck.Result r = check.check(a);
                 runOnUiThread(() -> {
@@ -2456,7 +2733,7 @@ public class MainActivity extends Activity {
     private ItemAdapter.Item issueItem(RipCheck.Result r) {
         String status = (r.problems.size() == 1 ? "1 issue" : r.problems.size() + " issues") + " · " + basisShort(r.basis);
         String sub = (r.artist != null ? r.artist + " · " : "") + String.join(" · ", r.problems);
-        return new ItemAdapter.Item(r.album.dir.getName(), sub, status, Ui.BAD, null, false, r.album);
+        return new ItemAdapter.Item(r.album.name(), sub, status, Ui.BAD, null, false, r.album);
     }
 
     /** "by ID" is the exact edition; "by search" is the edition most releases share, so worth a second look. */
@@ -2472,7 +2749,7 @@ public class MainActivity extends Activity {
         int checked = 0;
         for (RipCheck.Result r : ripResults) {
             if (r.skipped != null) {
-                skipped.add(new ItemAdapter.Item(r.album.dir.getName(), r.artist != null ? r.artist : parentName(r.album),
+                skipped.add(new ItemAdapter.Item(r.album.name(), r.artist != null ? r.artist : parentName(r.album),
                         "Not checked: " + r.skipped, Ui.SUB, null, false, r.album));
                 continue;
             }
@@ -2539,7 +2816,7 @@ public class MainActivity extends Activity {
         b.append("POSSIBLE ISSUES\n");
         if (issues.isEmpty()) b.append("  none\n");
         for (RipCheck.Result r : issues) {
-            b.append("\n").append(r.artist != null ? r.artist + " / " : "").append(r.album.dir.getName())
+            b.append("\n").append(r.artist != null ? r.artist + " / " : "").append(r.album.name())
                     .append("   (compared ").append(basisShort(r.basis)).append(")\n");
             b.append("  ").append(r.album.dir.getPath()).append('\n');
             for (String p : r.problems) b.append("  - ").append(p).append('\n');
@@ -2547,7 +2824,7 @@ public class MainActivity extends Activity {
         b.append("\nNOT CHECKED\n");
         if (skipped.isEmpty()) b.append("  none\n");
         for (RipCheck.Result r : skipped) {
-            b.append("  ").append(r.artist != null ? r.artist + " / " : "").append(r.album.dir.getName())
+            b.append("  ").append(r.artist != null ? r.artist + " / " : "").append(r.album.name())
                     .append(": ").append(r.skipped).append('\n');
         }
         File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);

@@ -20,9 +20,15 @@ public final class FetchJob implements Runnable {
         void onResult(Album album, LookupResult result, File saved, String error);
 
         void onDone(boolean cancelled);
+
+        /** iso7 Q1: the database said busy; the job waits this many seconds, then asks again (try n of BUSY_TRIES). */
+        default void onWait(Album album, int seconds, int attempt, int of) { }
     }
 
     private static final long PAUSE_MS = 1000;
+    /** iso7 Q1 (Michael: on "busy", pause ~60 s and carry on by itself instead of stopping the run). */
+    static final int BUSY_TRIES = 3;
+    long busyWaitMs = 60_000;
 
     private final List<Album> albums;
     private final ArtLookup lookup;
@@ -74,11 +80,19 @@ public final class FetchJob implements Runnable {
             Album a = albums.get(i);
             Tags t = TagReader.read(a.firstAudio);
             String artist = t.bestArtist();
-            String title = t.album != null ? t.album : a.dir.getName();
+            String title = t.album != null ? t.album : a.name();
             listener.onStart(a, artist, title, i, albums.size());
             // P4 (06c): once the cover database can't be reached, stop asking it for the rest of the run;
             // covers inside the files are still saved, the rest come back as "not tried"
             LookupResult r = offline ? ArtLookup.findOffline(a, t) : lookup.find(a, t);
+            // iso7 Q1: busy is the database asking us to slow down, not a dead end: wait, then the same album again.
+            // Only after BUSY_TRIES waits in a row does the run stop asking, as before (Try again still resumes).
+            for (int w = 1; !offline && !cancelled && LookupResult.BUSY.equals(r.reason) && w <= BUSY_TRIES; w++) {
+                listener.onWait(a, (int) (busyWaitMs / 1000), w, BUSY_TRIES);
+                if (!waitUnlessCancelled(busyWaitMs)) break;
+                listener.onStart(a, artist, title, i, albums.size());
+                r = lookup.find(a, t);
+            }
             if (LookupResult.NETWORK.equals(r.reason)) {
                 if (!offline) netDetail = r.detail; // the first failure is the cause; later albums aren't tried
                 offline = true;
@@ -88,12 +102,12 @@ public final class FetchJob implements Runnable {
             String error = null;
             if (r.image != null) {
                 try {
-                    saved = ArtWriter.save(a.dir, r.image, r.source, runLog);
+                    saved = ArtWriter.save(a, r.image, r.source, runLog);
                     if (saved == null) {
                         // 1.1.0: a folder.jpg that isn't a picture blocks the name, and it is never overwritten
-                        File f = new File(a.dir, ArtWriter.NAME);
+                        File f = new File(a.dir, a.coverName());
                         String why = f.exists() ? com.malbers.addmycoverart.core.AlbumScanner.artProblem(f) : null;
-                        error = why != null ? "folder.jpg " + why + ", left alone" : "art already there, left alone";
+                        error = why != null ? a.coverName() + " " + why + ", left alone" : "art already there, left alone";
                     }
                 } catch (IOException e) {
                     error = "couldn't save: " + e.getMessage();
@@ -102,5 +116,20 @@ public final class FetchJob implements Runnable {
             listener.onResult(a, r, saved, error);
         }
         listener.onDone(cancelled);
+    }
+
+    /** Sleeps in short steps so Stop answers within a quarter second; false when stopped or interrupted. */
+    private boolean waitUnlessCancelled(long ms) {
+        long end = System.currentTimeMillis() + ms;
+        try {
+            while (!cancelled) {
+                long left = end - System.currentTimeMillis();
+                if (left <= 0) return true;
+                Thread.sleep(Math.min(250, left));
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return false;
     }
 }

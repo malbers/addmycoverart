@@ -11,17 +11,36 @@ import java.util.List;
  * on Save. Never overwrites: a name that exists gets -2, -3… Music files are never opened.
  */
 public final class ExtraWriter {
-    public static final String SCAN = "Scan";
+    /** 1.1.2 (Michael 2026-11-25): new scans folders are "Scans", the common convention (was "Scan"). */
+    public static final String SCAN = "Scans";
+
+    /** 1.1.2: folder names that hold an album's extra pictures, any case. Artwork/ is common in downloaded rips. */
+    public static boolean isScansName(String n) {
+        return n.equalsIgnoreCase("scan") || n.equalsIgnoreCase("scans") || n.equalsIgnoreCase("artwork");
+    }
 
     private ExtraWriter() {}
 
-    /** The album's existing scan folder (Scan/ or Scans/, any case), else the Scan/ it would create. */
+    /** The album's existing scans folder (Scan/, Scans/ or Artwork/, any case), else the Scans/ it would create. */
     public static File scanDir(File album) {
         File[] kids = album.listFiles(File::isDirectory);
         if (kids != null) for (File k : kids) {
-            if (k.getName().equalsIgnoreCase("scan") || k.getName().equalsIgnoreCase("scans")) return k;
+            if (isScansName(k.getName())) return k;   // never a second scans folder next to an existing one
         }
         return new File(album, SCAN);
+    }
+
+    /** 1.1.2: saves into the album's own scan folder (Scan/<ISO name>/ for an ISO sharing its folder). */
+    public static File save(Album a, String fileName, byte[] image) throws IOException {
+        if (!a.sharedIso) return save(a.dir, fileName, image);
+        File dir = a.scanDir();
+        if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("could not create " + dir.getName());
+        File target = freeName(dir, fileName);
+        try (FileOutputStream out = new FileOutputStream(target)) {
+            out.write(image);
+            out.getFD().sync();
+        }
+        return target;
     }
 
     /** A name in {@code dir} not taken yet: name.jpg, else name-2.jpg, name-3.jpg… */
@@ -56,6 +75,35 @@ public final class ExtraWriter {
     }
 
     /** JPEG/PNG files in the album folder and its scan folder (not deeper). */
+    /**
+     * 1.1.2: an ISO sharing its folder only owns its "<ISO name>.jpg" and Scan/<ISO name>/, never the neighbours'
+     * pictures; any other album: the folder and its scan folder, as before.
+     */
+    public static List<File> existingPictures(Album a) {
+        if (!a.sharedIso) return existingPictures(a.dir);
+        List<File> out = new ArrayList<>();
+        File own = new File(a.dir, a.coverName());
+        if (own.isFile()) out.add(own);
+        File scan = a.scanDir();
+        if (scan.isDirectory()) addPictures(scan, out);
+        return out;
+    }
+
+    /** 1.1.2: {@link #sameAs(File, byte[])} within the album's own pictures. */
+    public static File sameAs(Album a, byte[] image) {
+        if (!a.sharedIso) return sameAs(a.dir, image);
+        if (image == null || image.length == 0) return null;
+        for (File f : existingPictures(a)) {
+            if (f.length() != image.length) continue;
+            try {
+                if (java.util.Arrays.equals(java.nio.file.Files.readAllBytes(f.toPath()), image)) return f;
+            } catch (IOException ignored) {
+                // unreadable: not a match
+            }
+        }
+        return null;
+    }
+
     public static List<File> existingPictures(File album) {
         List<File> out = new ArrayList<>();
         addPictures(album, out);

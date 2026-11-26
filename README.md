@@ -79,11 +79,14 @@ Most CDs came with more than a front cover. Open an album and tap **Find more ar
 | ![Album page: the cover, the pictures in the folder, and Find more art](docs/screenshots/v110/3-album.jpg) | ![Looking up Greatest Hits on MusicBrainz and the Cover Art Archive](docs/screenshots/v110/4-looking-up.jpg) | ![The back cover full screen: 1181 × 907, 288 KB](docs/screenshots/v110/6-viewer.jpg) |
 
 - **See before you choose.** Tap any picture to see it full screen, with its size. The check mark on each one leaves it in or out.
-- **Save** puts the ones you picked in a `Scan` folder inside the album folder: `back.jpg`, `booklet-01.jpg`, `booklet-02.jpg`, `disc.jpg`, `tray.jpg`. Nothing is ever overwritten; if a name is taken, the new picture gets `-2`.
-- **Your cover stays yours.** If the online front cover is clearly bigger than the one you have, it's offered too (marked **Bigger online**) and saved as `Scan/front.jpg`. Your own `folder.jpg` is never replaced. An album with no cover at all gets the front as its `folder.jpg`.
+- **Save** puts the ones you picked in a `Scans` folder inside the album folder (or in the album's own `Scan` or `Artwork` folder, if it already has one): `back.jpg`, `booklet-01.jpg`, `booklet-02.jpg`, `disc.jpg`, `tray.jpg`. Nothing is ever overwritten; if a name is taken, the new picture gets `-2`.
+- **Your cover stays yours.** If the online front cover is clearly bigger than the one you have, it's offered too (marked **Bigger online**) and saved as `Scans/front.jpg`. Your own `folder.jpg` is never replaced. An album with no cover at all gets the front as its `folder.jpg`.
+- **Next edition** steps through the other editions of the album, the ones in your album's own format first (SACD for an SACD, CD for a CD), vinyl last. Tick pictures from as many editions as you like; one Save keeps them all.
 - It works one album at a time, on purpose: which pages you want, and whether the online front beats yours, is your call.
 
-**Works with [EverSignal](https://github.com/malbers/eversignal).** EverSignal's Full-Screen Album Mode shows everything in the `Scan` folder as a slideshow while the album plays. Find the booklet here, then read it there while you listen.
+**Works with [EverSignal](https://github.com/malbers/eversignal).** EverSignal's Full-Screen Album Mode shows everything in the album's picture folder (`Scans`, `Scan` or `Artwork`) as a slideshow while the album plays. Find the booklet here, then read it there while you listen. (Not yet for SACD ISOs that share a folder with other albums.)
+
+**SACD ISOs.** Each `.iso` is an album of its own, wherever it sits. An ISO alone in its folder gets `folder.jpg` and a `Scans` folder like any album. Several ISOs in one folder each get their own cover, `<ISO name>.jpg` next to the ISO, and their own `Scans/<ISO name>/` for extras. One thing to know: the Eversolo's Library shows an ISO's cover only when it's the only picture in the folder, so if you want covers in the Eversolo's own Library, keep one ISO per folder.
 
 ![EverSignal's Full-Screen Album Mode showing the Aventine booklet saved by AddMyCoverArt, while "Fuel to Fire" plays bit-perfect](docs/screenshots/v110/10-eversignal-booklet.jpg)
 
@@ -100,8 +103,8 @@ Ever wondered whether your music really reaches your DAC untouched? **[EverSigna
 ## What it never does
 
 - It never changes, renames, moves or deletes your music, tags or folders.
-- It never overwrites art. An album that already has `folder.jpg`, `album.jpg`, `cover.jpg` or `front.jpg` is skipped, and a picture saved into `Scan` never replaces one that's there. Nor does it save the same picture twice: pictures you already have are marked **Already saved**.
-- In your music folders, it only ever creates `folder.jpg` next to your tracks, and the pictures you pick with Find more art, in the album's `Scan` folder. Delete them and the album is back how it was.
+- It never overwrites art. An album that already has `folder.jpg`, `album.jpg`, `cover.jpg` or `front.jpg` is skipped, and a picture saved into `Scans` never replaces one that's there. Nor does it save the same picture twice: pictures you already have are marked **Already saved**.
+- In your music folders, it only ever creates `folder.jpg` next to your tracks (for an SACD ISO sharing its folder, `<ISO name>.jpg` next to the ISO), and the pictures you pick with Find more art, in the album's `Scans` folder. Delete them and the album is back how it was.
 - It never deletes a broken cover file (an empty one, or a PDF named `album.jpg`); it just doesn't count it as a cover.
 - The only other files it writes go to the Eversolo's Download folder, and only when you ask: a saved rip report, or a downloaded update.
 - No Google Play, no Google services, no accounts, no analytics.
@@ -188,7 +191,7 @@ The first time you open it, the app asks for permission to read your music folde
 
    ![Permission screen](docs/install/first-1-permission.jpg)
 
-2. **Turn on the switch** next to **Allow access to manage all files**. Android's wording sounds alarming because this is a broad permission. AddMyCoverArt uses it only to read your folders, add `folder.jpg` files and the pictures you pick into `Scan` folders, and save a rip report or an update to Download when you ask. Then press the back arrow (top left) to return to the app.
+2. **Turn on the switch** next to **Allow access to manage all files**. Android's wording sounds alarming because this is a broad permission. AddMyCoverArt uses it only to read your folders, add `folder.jpg` files and the pictures you pick into `Scans` folders, and save a rip report or an update to Download when you ask. Then press the back arrow (top left) to return to the app.
 
    ![All files access](docs/install/first-2-all-files.jpg)
 
@@ -250,6 +253,15 @@ An APK with a different signer did not come from here.
 
 Newest first. Every version is also on the [releases page](https://github.com/malbers/addmycoverart/releases).
 
+**1.1.2** (25 November 2026)
+- **SACD ISOs!** `.iso` files are albums now, each one on its own, even several in one folder. The app reads the disc's own text for the title and artist, and falls back to the file name (`1990 - Violator (DMCD7 2006 SACD Remaster).iso` is searched as *Violator* by the folder's artist). Each ISO gets its own cover and its own pictures. Thanks to Václav H. for the nudge.
+- **Next edition!** Find more art now shows the first edition right away and lists the others while you look, so **Next edition** is instant. No second search, and no starting over at the edition you already saw.
+- **Your format first!** Editions are ordered by format: SACD first for an SACD, CD first for a CD rip. Vinyl comes last instead of first, though it's still there if you want the LP scans.
+- **Keep going when it's busy!** If MusicBrainz asks us to slow down during a long fetch, the app waits a minute and carries on by itself.
+- **Better matches!** Albums are preferred over singles of the same name, and budget-series titles like *Supreme Jazz: Duke Ellington* are found.
+- **Tidier browsing!** Picture folders (`Scans`, `Scan`, `Artwork`) no longer show as folders, an album page shows only that album's pictures, and SACD ISOs show their picture count (**+9**) like other albums. Disc folders named `CD I` and `CD II` are recognised.
+- New pictures go into a `Scans` folder. An album that already has a `Scan` or `Artwork` folder keeps using it.
+
 **1.1.1** (24 November 2026)
 - **New file formats!** It now reads the tags in DSF, APE, WavPack and M4A files and in older MP3s, so SACD rips and lossless collections finally get found. Thanks to Václav H., whose carefully organised library showed what was missing.
 - **Smarter folder names!** `Al Di Meola - 2006 - Consequence Of Chaos - DSF - 64` is searched as *Consequence Of Chaos* by *Al Di Meola*: the year and the format are left out. A typo in the tags? It tries the folder name too.
@@ -280,7 +292,7 @@ Newest first. Every version is also on the [releases page](https://github.com/ma
 
 ## Tested on
 
-Eversolo DMP-A6 (Gen 1), firmware 1.6.15, Android 11, with CD Ripper FLAC rips and an older MP3 library. It should work on other Android-based streamers, but that is untested. Find more art is tested with EverSignal 1.0.13's Full-Screen Album Mode.
+Eversolo DMP-A6 (Gen 1), firmware 1.6.15 and 1.6.40, Android 11, with CD Ripper FLAC rips, an older MP3 library and SACD ISOs. It should work on other Android-based streamers, but that is untested. Find more art is tested with EverSignal 1.0.13's Full-Screen Album Mode.
 
 ## Feedback
 
